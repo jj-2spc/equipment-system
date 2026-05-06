@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>器材借還系統 V2.2</title>
+  <title>器材借還系統 V3.1</title>
 
   <style>
     * { box-sizing: border-box; }
@@ -40,6 +40,7 @@
       margin: 0;
       color: #d1d5db;
       font-size: 14px;
+      line-height: 1.6;
     }
 
     .stats {
@@ -74,6 +75,7 @@
     .card {
       padding: 16px;
       margin-bottom: 16px;
+      overflow: hidden;
     }
 
     h2 {
@@ -84,34 +86,21 @@
     input, select, button {
       width: 100%;
       max-width: 100%;
-      min-width: 0;
-      display: block;
       padding: 12px;
       margin-top: 10px;
       border-radius: 12px;
       border: 1px solid #d1d5db;
       font-size: 16px;
       font-family: inherit;
-    }
-
-    input[type="date"] {
-      min-height: 48px;
-      background: #fff;
-      -webkit-appearance: none;
-      appearance: none;
-    }
-
-    .form-field {
       min-width: 0;
     }
 
-    .field-label {
+    label {
       display: block;
       margin-top: 10px;
-      margin-bottom: -4px;
-      color: #4b5563;
-      font-size: 14px;
+      color: #374151;
       font-weight: 700;
+      font-size: 14px;
     }
 
     button {
@@ -140,9 +129,7 @@
       margin-bottom: 12px;
     }
 
-    .mode-buttons button {
-      margin-top: 0;
-    }
+    .mode-buttons button { margin-top: 0; }
 
     .mode-buttons button.inactive {
       background: #e5e7eb;
@@ -151,23 +138,25 @@
 
     .grid-2 {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-columns: 1fr 1fr;
       gap: 10px;
-      width: 100%;
-      overflow: hidden;
+      align-items: start;
     }
 
-    .grid-2 > * {
-      min-width: 0;
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      align-items: start;
     }
 
-    .item, .record {
+    .item, .record, .admin-row {
       padding: 14px 0;
       border-bottom: 1px solid #e5e7eb;
       line-height: 1.7;
     }
 
-    .item:last-child, .record:last-child {
+    .item:last-child, .record:last-child, .admin-row:last-child {
       border-bottom: none;
     }
 
@@ -188,20 +177,12 @@
       white-space: nowrap;
     }
 
-    .available {
-      background: #dcfce7;
-      color: #166534;
-    }
-
-    .borrowed {
-      background: #fee2e2;
-      color: #991b1b;
-    }
-
-    .overdue {
-      background: #fef3c7;
-      color: #92400e;
-    }
+    .available { background: #dcfce7; color: #166534; }
+    .borrowed { background: #fee2e2; color: #991b1b; }
+    .overdue { background: #fef3c7; color: #92400e; }
+    .role-super { background: #ede9fe; color: #5b21b6; }
+    .role-admin { background: #dbeafe; color: #1d4ed8; }
+    .inactive-badge { background: #e5e7eb; color: #4b5563; }
 
     .small {
       color: #6b7280;
@@ -219,6 +200,7 @@
       font-size: 14px;
       margin-top: -4px;
       margin-bottom: 10px;
+      line-height: 1.6;
     }
 
     .edit-box {
@@ -229,13 +211,11 @@
       margin-top: 10px;
     }
 
-    .public-mode {
+    .public-mode, .admin-mode-hidden, .hidden {
       display: none !important;
     }
-    .admin-mode-hidden {
-      display: none !important;
-    }
-    .public-note {
+
+    .public-note, .login-note {
       background: #eef2ff;
       color: #3730a3;
       border-radius: 14px;
@@ -255,13 +235,34 @@
       display: none;
     }
 
+    .user-bar {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      background: white;
+      border-radius: 18px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+    }
+
+    .user-bar button {
+      width: auto;
+      margin-top: 0;
+      padding: 9px 14px;
+    }
+
     @media (max-width: 560px) {
       .app { padding: 12px; }
       .hero h1 { font-size: 24px; }
       .stat { padding: 10px; }
       .stat strong { font-size: 20px; }
-      .grid-2, .mode-buttons { grid-template-columns: 1fr; overflow: visible; }
+      .grid-2, .grid-3, .mode-buttons { grid-template-columns: 1fr; }
       input, select, button { font-size: 16px; }
+      .user-bar { align-items: stretch; }
+      .user-bar button { width: 100%; margin-top: 10px; }
     }
   </style>
 </head>
@@ -271,12 +272,28 @@
 
     <section class="hero">
       <h1 id="pageTitle">📦 器材借還系統</h1>
-      <p id="pageSubtitle">V2.2 雲端同步版：歷史紀錄時間修正版。</p>
+      <p id="pageSubtitle">V3.1 多管理員版：保管單位、保管人下拉選單。</p>
     </section>
 
     <div id="loadingBox" class="loading">資料處理中，請稍候...</div>
 
-    <section class="stats admin-only">
+    <section id="loginCard" class="card admin-login-only">
+      <h2>管理員登入</h2>
+      <div class="login-note">請使用管理員帳號密碼登入。借還入口不需要登入。</div>
+      <input type="text" id="loginUsername" placeholder="帳號" autocomplete="username">
+      <input type="password" id="loginPassword" placeholder="密碼" autocomplete="current-password">
+      <button onclick="loginAdmin()">登入</button>
+    </section>
+
+    <div id="userBar" class="user-bar admin-auth-only hidden">
+      <div>
+        <strong id="currentUserName">管理員</strong>
+        <div class="small" id="currentUserRole">role</div>
+      </div>
+      <button class="btn-gray" onclick="logoutAdmin()">登出</button>
+    </div>
+
+    <section class="stats admin-only admin-auth-only hidden">
       <div class="stat">
         <strong id="totalCount">0</strong>
         <span>總器材</span>
@@ -308,15 +325,10 @@
         <input type="text" id="borrowerName" placeholder="借用人姓名">
         <select id="borrowItemSelect"></select>
 
-        <div class="grid-2 borrow-extra-fields">
-          <div class="form-field">
-            <label class="field-label" for="expectedReturnDate">預計歸還日期</label>
-            <input type="date" id="expectedReturnDate" aria-label="預計歸還日期">
-          </div>
-          <div class="form-field">
-            <label class="field-label" for="borrowPurpose">用途</label>
-            <input type="text" id="borrowPurpose" placeholder="例如：會議使用" aria-label="用途">
-          </div>
+        <label for="expectedReturnDate">預計歸還日期</label>
+        <div class="grid-2">
+          <input type="date" id="expectedReturnDate">
+          <input type="text" id="borrowPurpose" placeholder="用途，例如：會議使用">
         </div>
 
         <button onclick="borrowItem()">確認借用</button>
@@ -328,12 +340,12 @@
       </div>
     </section>
 
-    <section class="card admin-only">
+    <section class="card admin-only admin-auth-only hidden">
       <h2>目前借用中</h2>
       <div id="borrowedList"></div>
     </section>
 
-    <section class="card admin-only">
+    <section class="card admin-only admin-auth-only hidden">
       <h2>新增器材</h2>
       <div class="grid-2">
         <input type="text" id="itemName" placeholder="器材名稱，例如：投影機 A01">
@@ -344,21 +356,53 @@
         </div>
       </div>
 
+      <div class="grid-2">
+        <div>
+          <select id="custodianUnitSelect" onchange="handleCustodianUnitSelectChange()"></select>
+          <input type="text" id="custodianUnitNew" placeholder="輸入新保管單位，例如：資訊室" style="display:none;">
+        </div>
+
+        <div>
+          <select id="custodianNameSelect" onchange="handleCustodianNameSelectChange()"></select>
+          <input type="text" id="custodianNameNew" placeholder="輸入新保管人，例如：王小明" style="display:none;">
+        </div>
+      </div>
+
       <button onclick="addItem()">新增器材</button>
     </section>
 
-    <section class="card admin-only">
+    <section class="card admin-only admin-auth-only hidden">
       <h2>器材列表</h2>
-      <input type="text" id="searchInput" placeholder="搜尋器材名稱或分類" oninput="renderItems()">
+      <input type="text" id="searchInput" placeholder="搜尋器材名稱、分類、保管單位、保管人" oninput="renderItems()">
       <div id="itemList"></div>
     </section>
 
-    <section class="card admin-only">
+    <section class="card admin-only admin-auth-only hidden">
       <h2>歷史紀錄</h2>
       <div id="historyList"></div>
     </section>
 
-    <section class="card admin-only">
+    <section id="adminManageCard" class="card admin-only admin-auth-only superadmin-only hidden">
+      <h2>管理員管理</h2>
+      <p class="section-note">只有總管理人可以新增、啟用或停用一般管理員。</p>
+
+      <div class="grid-2">
+        <input type="text" id="newAdminUsername" placeholder="新管理員帳號">
+        <input type="password" id="newAdminPassword" placeholder="新管理員密碼">
+      </div>
+      <div class="grid-2">
+        <input type="text" id="newAdminDisplayName" placeholder="顯示名稱，例如：王小明">
+        <select id="newAdminRole">
+          <option value="admin">一般管理員</option>
+          <option value="superadmin">總管理人</option>
+        </select>
+      </div>
+      <button onclick="addAdminUser()">新增管理員</button>
+
+      <div id="adminList"></div>
+    </section>
+
+    <section class="card admin-only admin-auth-only hidden">
       <h2>管理工具</h2>
       <button class="btn-gray" onclick="copyPublicUrl()">複製借還入口網址</button>
       <button class="btn-gray" onclick="loadData()">重新整理資料</button>
@@ -368,15 +412,17 @@
 
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbzWCXI7WV2qGY4XuXZs7xb2u1gu_QW4YwtWvlMWH4469X-NeRX_17HMXPtOLv5vrjyX/exec";
-    const ADMIN_PASSWORD = "jjpolice2508";
+    const SESSION_KEY = "equipment_admin_user_v3";
 
     const urlParams = new URLSearchParams(window.location.search);
     const pageMode = urlParams.get("mode") === "public" ? "public" : "admin";
 
     let items = [];
     let records = [];
+    let admins = [];
     let currentMode = "borrow";
     let editingItemId = null;
+    let currentUser = null;
 
     const ADD_NEW_CATEGORY_VALUE = "__ADD_NEW_CATEGORY__";
 
@@ -386,13 +432,13 @@
         document.getElementById("pageSubtitle").textContent = "請選擇借用或歸還器材。";
         document.getElementById("publicNote").style.display = "block";
 
-        document.querySelectorAll(".admin-only").forEach(el => {
+        document.querySelectorAll(".admin-only, .admin-login-only").forEach(el => {
           el.classList.add("public-mode");
         });
       } else {
         document.querySelectorAll(".public-only").forEach(el => {
           el.classList.add("admin-mode-hidden");
-       });
+        });
       }
     }
 
@@ -414,6 +460,87 @@
       return await res.json();
     }
 
+    function authPayload() {
+      return {
+        currentUsername: currentUser?.username || "",
+        currentRole: currentUser?.role || ""
+      };
+    }
+
+    function isSuperAdmin() {
+      return currentUser && currentUser.role === "superadmin";
+    }
+
+    function canManageItem(item) {
+      if (!currentUser) return false;
+      if (isSuperAdmin()) return true;
+      return String(item.ownerUsername || "") === String(currentUser.username || "");
+    }
+
+    async function loginAdmin() {
+      const username = document.getElementById("loginUsername").value.trim();
+      const password = document.getElementById("loginPassword").value.trim();
+
+      if (!username || !password) return alert("請輸入帳號與密碼");
+
+      try {
+        setLoading(true);
+        const data = await apiPost("login", { username, password });
+
+        if (!data.ok) return alert(data.error || "登入失敗");
+
+        currentUser = data.user;
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
+
+        const payload = data.data || {};
+        items = normalizeItems(payload.items || []);
+        records = normalizeRecords(payload.records || []);
+
+        showAdminUI();
+        renderAll();
+
+        if (isSuperAdmin()) await loadAdmins();
+      } catch (err) {
+        alert("登入失敗：" + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function restoreLoginSession() {
+      if (pageMode === "public") return false;
+
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (!raw) return false;
+
+      try {
+        currentUser = JSON.parse(raw);
+        if (!currentUser?.username || !currentUser?.role) return false;
+        showAdminUI();
+        return true;
+      } catch {
+        sessionStorage.removeItem(SESSION_KEY);
+        return false;
+      }
+    }
+
+    function showAdminUI() {
+      document.getElementById("loginCard").classList.add("hidden");
+      document.querySelectorAll(".admin-auth-only").forEach(el => el.classList.remove("hidden"));
+
+      document.getElementById("currentUserName").textContent = currentUser.displayName || currentUser.username;
+      document.getElementById("currentUserRole").textContent = currentUser.role === "superadmin" ? "總管理人" : "一般管理員";
+
+      document.querySelectorAll(".superadmin-only").forEach(el => {
+        el.classList.toggle("hidden", !isSuperAdmin());
+      });
+    }
+
+    function logoutAdmin() {
+      sessionStorage.removeItem(SESSION_KEY);
+      location.reload();
+    }
+
     async function loadData() {
       try {
         setLoading(true);
@@ -427,10 +554,26 @@
         items = normalizeItems(data.items || []);
         records = normalizeRecords(data.records || []);
         renderAll();
+
+        if (pageMode === "admin" && isSuperAdmin()) await loadAdmins();
       } catch (err) {
         alert("讀取資料失敗：" + err.message);
       } finally {
         setLoading(false);
+      }
+    }
+
+    async function loadAdmins() {
+      if (!isSuperAdmin()) return;
+
+      try {
+        const data = await apiPost("getAdmins", authPayload());
+        if (!data.ok) return alert(data.error || "讀取管理員清單失敗");
+
+        admins = normalizeAdmins(data.admins || []);
+        renderAdminList();
+      } catch (err) {
+        alert("讀取管理員清單失敗：" + err.message);
       }
     }
 
@@ -439,129 +582,119 @@
         id: String(item.id),
         name: item.name || "",
         category: item.category || "未分類",
+        custodianUnit: item.custodianUnit || "",
+        custodianName: item.custodianName || "",
+        ownerUsername: item.ownerUsername || "",
         available: String(item.available).toUpperCase() === "TRUE"
       }));
     }
 
     function normalizeRecords(list) {
-      return list.map(record => {
-        const borrowTime = getRecordField(record, "borrowTime");
-        const expectedReturnDate = getRecordField(record, "expectedReturnDate");
-        const returnTime = getRecordField(record, "returnTime");
-
-        return {
-          id: String(getRecordField(record, "id")),
-          itemId: String(getRecordField(record, "itemId")),
-          itemName: getRecordField(record, "itemName") || "",
-          itemCategory: getRecordField(record, "itemCategory") || "未分類",
-          borrower: getRecordField(record, "borrower") || "",
-          borrowTime: formatDisplayDateTime(borrowTime),
-          expectedReturnDate: formatDisplayDateOnly(expectedReturnDate),
-          purpose: getRecordField(record, "purpose") || "",
-          returnTime: formatDisplayDateTime(returnTime),
-          status: getRecordField(record, "status") || ""
-        };
-      });
+      return list.map(record => ({
+        id: String(record.id),
+        itemId: String(record.itemId),
+        itemName: record.itemName || "",
+        itemCategory: record.itemCategory || "未分類",
+        borrower: record.borrower || "",
+        borrowTime: displayDateTime(record.borrowTime),
+        expectedReturnDate: displayDate(record.expectedReturnDate),
+        purpose: record.purpose || "",
+        returnTime: displayDateTime(record.returnTime),
+        status: record.status || ""
+      }));
     }
 
-    function getRecordField(record, fieldName) {
-      if (!record) return "";
-
-      if (record[fieldName] !== undefined && record[fieldName] !== null) {
-        return record[fieldName];
-      }
-
-      const matchedKey = Object.keys(record).find(key =>
-        String(key).trim().toLowerCase() === String(fieldName).trim().toLowerCase()
-      );
-
-      if (!matchedKey) return "";
-
-      return record[matchedKey] === undefined || record[matchedKey] === null
-        ? ""
-        : record[matchedKey];
+    function normalizeAdmins(list) {
+      return list.map(admin => ({
+        id: String(admin.id),
+        username: admin.username || "",
+        displayName: admin.displayName || admin.username || "",
+        role: admin.role || "admin",
+        active: String(admin.active).toUpperCase() === "TRUE",
+        createdAt: displayDateTime(admin.createdAt)
+      }));
     }
 
-    function formatDisplayDateTime(value) {
+    function displayDateTime(value) {
       if (!value) return "";
-
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        if (!trimmed) return "";
-
-        const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-        if (isoMatch) {
-          return `${isoMatch[1]}/${isoMatch[2]}/${isoMatch[3]} ${isoMatch[4]}:${isoMatch[5]}`;
+      const text = String(value);
+      if (/^\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}/.test(text)) return text;
+      if (/^\d{4}-\d{2}-\d{2}T/.test(text)) {
+        const d = new Date(text);
+        if (!isNaN(d.getTime())) {
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, "0");
+          const day = String(d.getDate()).padStart(2, "0");
+          const hh = String(d.getHours()).padStart(2, "0");
+          const mm = String(d.getMinutes()).padStart(2, "0");
+          return `${y}/${m}/${day} ${hh}:${mm}`;
         }
-
-        return trimmed;
       }
-
-      if (typeof value === "number") {
-        return String(value);
-      }
-
-      return String(value);
+      return text;
     }
 
-    function formatDisplayDateOnly(value) {
+    function displayDate(value) {
       if (!value) return "";
-
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        if (!trimmed) return "";
-
-        const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
-        if (isoMatch) {
-          return `${isoMatch[1]}/${isoMatch[2]}/${isoMatch[3]}`;
+      const text = String(value);
+      if (/^\d{4}\/\d{2}\/\d{2}$/.test(text)) return text;
+      if (/^\d{4}-\d{2}-\d{2}T/.test(text)) {
+        const d = new Date(text);
+        if (!isNaN(d.getTime())) {
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, "0");
+          const day = String(d.getDate()).padStart(2, "0");
+          return `${y}/${m}/${day}`;
         }
-
-        return trimmed;
       }
-
-      return String(value);
+      return text;
     }
 
     function getCategories() {
       const baseCategories = ["未分類"];
-      const existingCategories = items
-        .map(item => item.category || "未分類")
-        .filter(Boolean);
-
+      const existingCategories = items.map(item => item.category || "未分類").filter(Boolean);
       return [...new Set([...baseCategories, ...existingCategories])];
+    }
+
+    function getCustodianUnits() {
+      const baseUnits = ["未填"];
+      const existingUnits = items.map(item => item.custodianUnit || "").filter(Boolean);
+      return [...new Set([...baseUnits, ...existingUnits])];
+    }
+
+    function getCustodianNames() {
+      const baseNames = ["未填"];
+      const existingNames = items.map(item => item.custodianName || "").filter(Boolean);
+      return [...new Set([...baseNames, ...existingNames])];
     }
 
     function renderCategorySelects() {
       renderAddCategorySelect();
+      renderAddCustodianUnitSelect();
+      renderAddCustodianNameSelect();
       renderVisibleEditCategorySelects();
+      renderVisibleEditCustodianSelects();
     }
 
     function renderAddCategorySelect() {
-      if (pageMode === "public") return;
+      if (pageMode === "public" || !document.getElementById("itemCategorySelect")) return;
 
       const select = document.getElementById("itemCategorySelect");
       const currentValue = select.value || "未分類";
       const categories = getCategories();
 
       select.innerHTML = `
-        ${categories.map(category => `
-          <option value="${escapeHtml(category)}">${escapeHtml(category)}</option>
-        `).join("")}
+        ${categories.map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("")}
         <option value="${ADD_NEW_CATEGORY_VALUE}">＋新增分類</option>
       `;
 
-      if (categories.includes(currentValue)) {
-        select.value = currentValue;
-      } else {
-        select.value = "未分類";
-      }
-
+      select.value = categories.includes(currentValue) ? currentValue : "未分類";
       handleCategorySelectChange();
     }
 
     function handleCategorySelectChange() {
       const select = document.getElementById("itemCategorySelect");
       const newInput = document.getElementById("itemCategoryNew");
+      if (!select || !newInput) return;
 
       if (select.value === ADD_NEW_CATEGORY_VALUE) {
         newInput.style.display = "block";
@@ -575,11 +708,7 @@
     function getAddCategoryValue() {
       const select = document.getElementById("itemCategorySelect");
       const newInput = document.getElementById("itemCategoryNew");
-
-      if (select.value === ADD_NEW_CATEGORY_VALUE) {
-        return newInput.value.trim() || "未分類";
-      }
-
+      if (select.value === ADD_NEW_CATEGORY_VALUE) return newInput.value.trim() || "未分類";
       return select.value || "未分類";
     }
 
@@ -591,16 +720,13 @@
 
       const select = document.getElementById(`editCategorySelect-${editingItemId}`);
       const newInput = document.getElementById(`editCategoryNew-${editingItemId}`);
-
       if (!select || !newInput) return;
 
       const categories = getCategories();
       const currentCategory = item.category || "未分類";
 
       select.innerHTML = `
-        ${categories.map(category => `
-          <option value="${escapeHtml(category)}">${escapeHtml(category)}</option>
-        `).join("")}
+        ${categories.map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("")}
         <option value="${ADD_NEW_CATEGORY_VALUE}">＋新增分類</option>
       `;
 
@@ -612,6 +738,7 @@
     function handleEditCategorySelectChange(itemId) {
       const select = document.getElementById(`editCategorySelect-${itemId}`);
       const newInput = document.getElementById(`editCategoryNew-${itemId}`);
+      if (!select || !newInput) return;
 
       if (select.value === ADD_NEW_CATEGORY_VALUE) {
         newInput.style.display = "block";
@@ -625,61 +752,191 @@
     function getEditCategoryValue(itemId) {
       const select = document.getElementById(`editCategorySelect-${itemId}`);
       const newInput = document.getElementById(`editCategoryNew-${itemId}`);
+      if (select.value === ADD_NEW_CATEGORY_VALUE) return newInput.value.trim() || "未分類";
+      return select.value || "未分類";
+    }
+
+    function renderAddCustodianUnitSelect() {
+      if (pageMode === "public" || !document.getElementById("custodianUnitSelect")) return;
+
+      const select = document.getElementById("custodianUnitSelect");
+      const currentValue = select.value || "未填";
+      const units = getCustodianUnits();
+
+      select.innerHTML = `
+        ${units.map(unit => `<option value="${escapeHtml(unit)}">${escapeHtml(unit)}</option>`).join("")}
+        <option value="${ADD_NEW_CATEGORY_VALUE}">＋新增保管單位</option>
+      `;
+
+      select.value = units.includes(currentValue) ? currentValue : "未填";
+      handleCustodianUnitSelectChange();
+    }
+
+    function handleCustodianUnitSelectChange() {
+      const select = document.getElementById("custodianUnitSelect");
+      const newInput = document.getElementById("custodianUnitNew");
+      if (!select || !newInput) return;
 
       if (select.value === ADD_NEW_CATEGORY_VALUE) {
-        return newInput.value.trim() || "未分類";
+        newInput.style.display = "block";
+        newInput.focus();
+      } else {
+        newInput.style.display = "none";
+        newInput.value = "";
       }
+    }
 
-      return select.value || "未分類";
+    function getAddCustodianUnitValue() {
+      const select = document.getElementById("custodianUnitSelect");
+      const newInput = document.getElementById("custodianUnitNew");
+      if (select.value === ADD_NEW_CATEGORY_VALUE) return newInput.value.trim();
+      return select.value === "未填" ? "" : (select.value || "");
+    }
+
+    function renderAddCustodianNameSelect() {
+      if (pageMode === "public" || !document.getElementById("custodianNameSelect")) return;
+
+      const select = document.getElementById("custodianNameSelect");
+      const currentValue = select.value || "未填";
+      const names = getCustodianNames();
+
+      select.innerHTML = `
+        ${names.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}
+        <option value="${ADD_NEW_CATEGORY_VALUE}">＋新增保管人</option>
+      `;
+
+      select.value = names.includes(currentValue) ? currentValue : "未填";
+      handleCustodianNameSelectChange();
+    }
+
+    function handleCustodianNameSelectChange() {
+      const select = document.getElementById("custodianNameSelect");
+      const newInput = document.getElementById("custodianNameNew");
+      if (!select || !newInput) return;
+
+      if (select.value === ADD_NEW_CATEGORY_VALUE) {
+        newInput.style.display = "block";
+        newInput.focus();
+      } else {
+        newInput.style.display = "none";
+        newInput.value = "";
+      }
+    }
+
+    function getAddCustodianNameValue() {
+      const select = document.getElementById("custodianNameSelect");
+      const newInput = document.getElementById("custodianNameNew");
+      if (select.value === ADD_NEW_CATEGORY_VALUE) return newInput.value.trim();
+      return select.value === "未填" ? "" : (select.value || "");
+    }
+
+    function renderVisibleEditCustodianSelects() {
+      if (!editingItemId) return;
+
+      const item = items.find(i => i.id === editingItemId);
+      if (!item) return;
+
+      renderOneEditSelect({
+        itemId: editingItemId,
+        selectId: `editCustodianUnitSelect-${editingItemId}`,
+        inputId: `editCustodianUnitNew-${editingItemId}`,
+        values: getCustodianUnits(),
+        currentValue: item.custodianUnit || "未填"
+      });
+
+      renderOneEditSelect({
+        itemId: editingItemId,
+        selectId: `editCustodianNameSelect-${editingItemId}`,
+        inputId: `editCustodianNameNew-${editingItemId}`,
+        values: getCustodianNames(),
+        currentValue: item.custodianName || "未填"
+      });
+    }
+
+    function renderOneEditSelect({ selectId, inputId, values, currentValue }) {
+      const select = document.getElementById(selectId);
+      const newInput = document.getElementById(inputId);
+      if (!select || !newInput) return;
+
+      select.innerHTML = `
+        ${values.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}
+        <option value="${ADD_NEW_CATEGORY_VALUE}">＋新增</option>
+      `;
+
+      select.value = values.includes(currentValue) ? currentValue : "未填";
+      newInput.style.display = "none";
+      newInput.value = "";
+    }
+
+    function handleEditCustodianSelectChange(itemId, type) {
+      const selectId = type === "unit" ? `editCustodianUnitSelect-${itemId}` : `editCustodianNameSelect-${itemId}`;
+      const inputId = type === "unit" ? `editCustodianUnitNew-${itemId}` : `editCustodianNameNew-${itemId}`;
+      const select = document.getElementById(selectId);
+      const newInput = document.getElementById(inputId);
+      if (!select || !newInput) return;
+
+      if (select.value === ADD_NEW_CATEGORY_VALUE) {
+        newInput.style.display = "block";
+        newInput.focus();
+      } else {
+        newInput.style.display = "none";
+        newInput.value = "";
+      }
+    }
+
+    function getEditCustodianValue(itemId, type) {
+      const selectId = type === "unit" ? `editCustodianUnitSelect-${itemId}` : `editCustodianNameSelect-${itemId}`;
+      const inputId = type === "unit" ? `editCustodianUnitNew-${itemId}` : `editCustodianNameNew-${itemId}`;
+      const select = document.getElementById(selectId);
+      const newInput = document.getElementById(inputId);
+
+      if (select.value === ADD_NEW_CATEGORY_VALUE) return newInput.value.trim();
+      return select.value === "未填" ? "" : (select.value || "");
     }
 
     function isOverdue(dateStr) {
       if (!dateStr) return false;
-
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-
-      const target = new Date(dateStr);
+      const target = new Date(dateStr.replaceAll("/", "-"));
       target.setHours(0, 0, 0, 0);
-
-      return target < today;
+      return !isNaN(target.getTime()) && target < today;
     }
 
     function setMode(mode) {
       currentMode = mode;
-
       document.getElementById("borrowPanel").style.display = mode === "borrow" ? "block" : "none";
       document.getElementById("returnPanel").style.display = mode === "return" ? "block" : "none";
-
       document.getElementById("borrowModeBtn").classList.toggle("inactive", mode !== "borrow");
       document.getElementById("returnModeBtn").classList.toggle("inactive", mode !== "return");
-
       renderBorrowSelect();
       renderReturnSelect();
     }
 
     async function addItem() {
       const nameInput = document.getElementById("itemName");
-
       const name = nameInput.value.trim();
       const category = getAddCategoryValue();
+      const custodianUnit = getAddCustodianUnitValue();
+      const custodianName = getAddCustodianNameValue();
 
       if (!name) return alert("請輸入器材名稱");
 
       try {
         setLoading(true);
-
-        const data = await apiPost("addItem", { name, category });
-
+        const data = await apiPost("addItem", { ...authPayload(), name, category, custodianUnit, custodianName });
         if (!data.ok) return alert(data.error || "新增失敗");
 
         items = normalizeItems(data.items || []);
         records = normalizeRecords(data.records || []);
 
         nameInput.value = "";
-        document.getElementById("itemCategorySelect").value = category;
         document.getElementById("itemCategoryNew").value = "";
         document.getElementById("itemCategoryNew").style.display = "none";
+        document.getElementById("custodianUnitNew").value = "";
+        document.getElementById("custodianUnitNew").style.display = "none";
+        document.getElementById("custodianNameNew").value = "";
+        document.getElementById("custodianNameNew").style.display = "none";
 
         renderAll();
       } catch (err) {
@@ -705,14 +962,7 @@
 
       try {
         setLoading(true);
-
-        const data = await apiPost("borrowItem", {
-          itemId,
-          borrower,
-          expectedReturnDate,
-          purpose
-        });
-
+        const data = await apiPost("borrowItem", { itemId, borrower, expectedReturnDate, purpose });
         if (!data.ok) return alert(data.error || "借用失敗");
 
         items = normalizeItems(data.items || []);
@@ -747,14 +997,11 @@
 
       try {
         setLoading(true);
-
         const data = await apiPost("returnItem", { recordId });
-
         if (!data.ok) return alert(data.error || "歸還失敗");
 
         items = normalizeItems(data.items || []);
         records = normalizeRecords(data.records || []);
-
         renderAll();
         alert("歸還完成");
       } catch (err) {
@@ -768,6 +1015,7 @@
       editingItemId = String(itemId);
       renderItems();
       renderVisibleEditCategorySelects();
+      renderVisibleEditCustodianSelects();
     }
 
     function cancelEditItem() {
@@ -777,27 +1025,23 @@
 
     async function saveEditItem(itemId) {
       const nameInput = document.getElementById(`editName-${itemId}`);
-
       const name = nameInput.value.trim();
       const category = getEditCategoryValue(itemId);
+      const custodianUnit = getEditCustodianValue(itemId, "unit");
+      const custodianName = getEditCustodianValue(itemId, "name");
 
       if (!name) return alert("器材名稱不能空白");
 
       try {
         setLoading(true);
-
         const data = await apiPost("updateItem", {
-          id: String(itemId),
-          name,
-          category
+          ...authPayload(), id: String(itemId), name, category, custodianUnit, custodianName
         });
-
         if (!data.ok) return alert(data.error || "更新失敗");
 
         items = normalizeItems(data.items || []);
         records = normalizeRecords(data.records || []);
         editingItemId = null;
-
         renderAll();
       } catch (err) {
         alert("更新失敗：" + err.message);
@@ -815,9 +1059,7 @@
 
       try {
         setLoading(true);
-
-        const data = await apiPost("deleteItem", { id: String(itemId) });
-
+        const data = await apiPost("deleteItem", { ...authPayload(), id: String(itemId) });
         if (!data.ok) return alert(data.error || "刪除失敗");
 
         items = normalizeItems(data.items || []);
@@ -830,9 +1072,52 @@
       }
     }
 
+    async function addAdminUser() {
+      const username = document.getElementById("newAdminUsername").value.trim();
+      const password = document.getElementById("newAdminPassword").value.trim();
+      const displayName = document.getElementById("newAdminDisplayName").value.trim();
+      const role = document.getElementById("newAdminRole").value;
+
+      if (!username || !password) return alert("請輸入新管理員帳號與密碼");
+
+      try {
+        setLoading(true);
+        const data = await apiPost("addAdmin", { ...authPayload(), username, password, displayName, role });
+        if (!data.ok) return alert(data.error || "新增管理員失敗");
+
+        admins = normalizeAdmins(data.admins || []);
+        document.getElementById("newAdminUsername").value = "";
+        document.getElementById("newAdminPassword").value = "";
+        document.getElementById("newAdminDisplayName").value = "";
+        document.getElementById("newAdminRole").value = "admin";
+        renderAdminList();
+      } catch (err) {
+        alert("新增管理員失敗：" + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    async function toggleAdminUser(username) {
+      const ok = confirm(`確定要切換「${username}」的啟用狀態嗎？`);
+      if (!ok) return;
+
+      try {
+        setLoading(true);
+        const data = await apiPost("toggleAdmin", { ...authPayload(), username });
+        if (!data.ok) return alert(data.error || "更新管理員狀態失敗");
+
+        admins = normalizeAdmins(data.admins || []);
+        renderAdminList();
+      } catch (err) {
+        alert("更新管理員狀態失敗：" + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
     function renderStats() {
       if (pageMode === "public") return;
-
       document.getElementById("totalCount").textContent = items.length;
       document.getElementById("availableCount").textContent = items.filter(i => i.available).length;
       document.getElementById("borrowedCount").textContent = items.filter(i => !i.available).length;
@@ -881,11 +1166,12 @@
       const keyword = document.getElementById("searchInput").value.trim().toLowerCase();
 
       let filtered = items;
-
       if (keyword) {
         filtered = items.filter(item =>
           item.name.toLowerCase().includes(keyword) ||
-          item.category.toLowerCase().includes(keyword)
+          item.category.toLowerCase().includes(keyword) ||
+          item.custodianUnit.toLowerCase().includes(keyword) ||
+          item.custodianName.toLowerCase().includes(keyword)
         );
       }
 
@@ -903,17 +1189,20 @@
 
                 <input id="editName-${escapeHtml(item.id)}" type="text" value="${escapeHtml(item.name)}">
 
-                <select
-                  id="editCategorySelect-${escapeHtml(item.id)}"
-                  onchange="handleEditCategorySelectChange('${escapeJs(item.id)}')"
-                ></select>
+                <select id="editCategorySelect-${escapeHtml(item.id)}" onchange="handleEditCategorySelectChange('${escapeJs(item.id)}')"></select>
+                <input id="editCategoryNew-${escapeHtml(item.id)}" type="text" placeholder="輸入新分類，例如：資訊設備" style="display:none;">
 
-                <input
-                  id="editCategoryNew-${escapeHtml(item.id)}"
-                  type="text"
-                  placeholder="輸入新分類，例如：資訊設備"
-                  style="display:none;"
-                >
+                <div class="grid-2">
+                  <div>
+                    <select id="editCustodianUnitSelect-${escapeHtml(item.id)}" onchange="handleEditCustodianSelectChange('${escapeJs(item.id)}', 'unit')"></select>
+                    <input id="editCustodianUnitNew-${escapeHtml(item.id)}" type="text" placeholder="輸入新保管單位，例如：資訊室" style="display:none;">
+                  </div>
+
+                  <div>
+                    <select id="editCustodianNameSelect-${escapeHtml(item.id)}" onchange="handleEditCustodianSelectChange('${escapeJs(item.id)}', 'name')"></select>
+                    <input id="editCustodianNameNew-${escapeHtml(item.id)}" type="text" placeholder="輸入新保管人，例如：王小明" style="display:none;">
+                  </div>
+                </div>
 
                 <div class="grid-2">
                   <button class="btn-green" onclick="saveEditItem('${escapeJs(item.id)}')">儲存</button>
@@ -924,24 +1213,23 @@
           `;
         }
 
+        const canEdit = canManageItem(item);
+
         return `
           <div class="item">
             <div class="title-row">
               <strong>${escapeHtml(item.name)}</strong>
-              <span class="badge ${item.available ? "available" : "borrowed"}">
-                ${item.available ? "可借用" : "借用中"}
-              </span>
+              <span class="badge ${item.available ? "available" : "borrowed"}">${item.available ? "可借用" : "借用中"}</span>
             </div>
 
             <div class="small">分類：${escapeHtml(item.category)}</div>
+            <div class="small">保管單位：${escapeHtml(item.custodianUnit || "未填")}</div>
+            <div class="small">保管人：${escapeHtml(item.custodianName || "未填")}</div>
+            <div class="small">建立者：${escapeHtml(item.ownerUsername || "未記錄")}</div>
 
             <div class="grid-2">
-              <button class="btn-orange" onclick="startEditItem('${escapeJs(item.id)}')">編輯</button>
-              ${item.available ? `
-                <button class="btn-red" onclick="deleteItem('${escapeJs(item.id)}')">刪除</button>
-              ` : `
-                <button class="btn-gray" disabled>借用中不可刪除</button>
-              `}
+              ${canEdit ? `<button class="btn-orange" onclick="startEditItem('${escapeJs(item.id)}')">編輯</button>` : `<button class="btn-gray" disabled>不可編輯</button>`}
+              ${item.available && canEdit ? `<button class="btn-red" onclick="deleteItem('${escapeJs(item.id)}')">刪除</button>` : `<button class="btn-gray" disabled>${item.available ? "不可刪除" : "借用中不可刪除"}</button>`}
             </div>
           </div>
         `;
@@ -961,19 +1249,16 @@
 
       list.innerHTML = borrowedRecords.map(record => {
         const overdue = isOverdue(record.expectedReturnDate);
-
         return `
           <div class="record">
             <div class="title-row">
               <strong>${escapeHtml(record.itemName)}</strong>
-              <span class="badge ${overdue ? "overdue" : "borrowed"}">
-                ${overdue ? "逾期" : "借用中"}
-              </span>
+              <span class="badge ${overdue ? "overdue" : "borrowed"}">${overdue ? "逾期" : "借用中"}</span>
             </div>
 
             <div>借用人：${escapeHtml(record.borrower)}</div>
             <div>分類：${escapeHtml(record.itemCategory)}</div>
-            <div>借出時間：${record.borrowTime}</div>
+            <div>借出時間：${record.borrowTime || "未記錄"}</div>
             <div>預計歸還：${record.expectedReturnDate || "未填"}</div>
             <div>用途：${escapeHtml(record.purpose || "未填")}</div>
 
@@ -987,28 +1272,50 @@
       if (pageMode === "public") return;
 
       const list = document.getElementById("historyList");
-
       if (records.length === 0) {
         list.innerHTML = `<div class="empty">尚無借還紀錄</div>`;
         return;
       }
 
       const recentRecords = [...records].reverse();
-
       list.innerHTML = recentRecords.map(record => `
         <div class="record">
           <div class="title-row">
             <strong>${escapeHtml(record.itemName)}</strong>
-            <span class="badge ${record.status === "borrowed" ? "borrowed" : "available"}">
-              ${record.status === "borrowed" ? "借用中" : "已歸還"}
-            </span>
+            <span class="badge ${record.status === "borrowed" ? "borrowed" : "available"}">${record.status === "borrowed" ? "借用中" : "已歸還"}</span>
           </div>
 
           <div>借用人：${escapeHtml(record.borrower)}</div>
           <div>分類：${escapeHtml(record.itemCategory)}</div>
-          <div>借出：${record.borrowTime}</div>
+          <div>借出：${record.borrowTime || "未記錄"}</div>
           <div>實際歸還：${record.returnTime || "尚未歸還"}</div>
           <div>用途：${escapeHtml(record.purpose || "未填")}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderAdminList() {
+      if (!isSuperAdmin()) return;
+      const list = document.getElementById("adminList");
+
+      if (admins.length === 0) {
+        list.innerHTML = `<div class="empty">尚無管理員資料</div>`;
+        return;
+      }
+
+      list.innerHTML = admins.map(admin => `
+        <div class="admin-row">
+          <div class="title-row">
+            <strong>${escapeHtml(admin.displayName)}（${escapeHtml(admin.username)}）</strong>
+            <span class="badge ${admin.active ? "available" : "inactive-badge"}">${admin.active ? "啟用中" : "已停用"}</span>
+          </div>
+          <div class="small">權限：<span class="badge ${admin.role === "superadmin" ? "role-super" : "role-admin"}">${admin.role === "superadmin" ? "總管理人" : "一般管理員"}</span></div>
+          <div class="small">建立時間：${admin.createdAt || "未記錄"}</div>
+          ${admin.username === currentUser.username ? `
+            <button class="btn-gray" disabled>目前登入帳號</button>
+          ` : `
+            <button class="${admin.active ? "btn-red" : "btn-green"}" onclick="toggleAdminUser('${escapeJs(admin.username)}')">${admin.active ? "停用" : "啟用"}</button>
+          `}
         </div>
       `).join("");
     }
@@ -1016,7 +1323,6 @@
     function copyPublicUrl() {
       const baseUrl = window.location.href.split("?")[0];
       const publicUrl = `${baseUrl}?mode=public`;
-
       navigator.clipboard.writeText(publicUrl)
         .then(() => alert("已複製借還入口網址"))
         .catch(() => prompt("請手動複製這個網址：", publicUrl));
@@ -1048,45 +1354,18 @@
       renderItems();
       renderBorrowedList();
       renderHistory();
+      renderAdminList();
     }
 
-    if (checkAdminAccess()) {
-      setMode("borrow");
+    initPageMode();
+    setMode("borrow");
+
+    if (pageMode === "public") {
       loadData();
-    }
-
-    function checkAdminAccess() {
-      if (pageMode === "public") {
-        initPageMode();
-        return true;
+    } else {
+      if (restoreLoginSession()) {
+        loadData();
       }
-
-      const loginKey = "equipmentAdminLoggedIn";
-
-      if (sessionStorage.getItem(loginKey) === "true") {
-        initPageMode();
-        return true;
-      }
-
-      const password = prompt("請輸入管理員密碼");
-
-      if (password !== ADMIN_PASSWORD) {
-        alert("密碼錯誤");
-        document.body.innerHTML = `
-          <div style="
-            font-family:sans-serif;
-            padding:40px;
-            text-align:center;
-          ">
-            <h1>⛔ 無權限存取</h1>
-          </div>
-        `;
-        return false;
-      }
-
-      sessionStorage.setItem(loginKey, "true");
-      initPageMode();
-      return true;
     }
   </script>
 </body>
