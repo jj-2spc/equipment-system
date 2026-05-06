@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>器材借還系統 V2.1</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Noto Sans TC", sans-serif;
+      background: #f3f4f6;
+      margin: 0;
+      color: #111827;
+    }
+
+    .app {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #111827, #374151);
+      color: white;
+      border-radius: 22px;
+      padding: 22px;
+      margin-bottom: 16px;
+      box-shadow: 0 10px 30px rgba(17, 24, 39, 0.25);
+    }
+
+    .hero h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+    }
+
+    .hero p {
+      margin: 0;
+      color: #d1d5db;
+      font-size: 14px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .stat, .card {
+      background: white;
+      border-radius: 18px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+    }
+
+    .stat {
+      padding: 14px;
+      text-align: center;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 24px;
+      margin-bottom: 4px;
+    }
+
+    .stat span {
+      color: #6b7280;
+      font-size: 13px;
+    }
+
+    .card {
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 20px;
+    }
+
+    input, select, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      border-radius: 12px;
+      border: 1px solid #d1d5db;
+      font-size: 16px;
+      font-family: inherit;
+    }
+
+    button {
+      background: #111827;
+      color: white;
+      border: none;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .btn-blue { background: #2563eb; }
+    .btn-green { background: #16a34a; }
+    .btn-red { background: #b91c1c; }
+    .btn-gray { background: #6b7280; }
+    .btn-orange { background: #ea580c; }
+
+    .mode-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .mode-buttons button {
+      margin-top: 0;
+    }
+
+    .mode-buttons button.inactive {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .item, .record {
+      padding: 14px 0;
+      border-bottom: 1px solid #e5e7eb;
+      line-height: 1.7;
+    }
+
+    .item:last-child, .record:last-child {
+      border-bottom: none;
+    }
+
+    .title-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .available {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .borrowed {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .overdue {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .small {
+      color: #6b7280;
+      font-size: 14px;
+    }
+
+    .empty {
+      color: #9ca3af;
+      text-align: center;
+      padding: 22px;
+    }
+
+    .section-note {
+      color: #6b7280;
+      font-size: 14px;
+      margin-top: -4px;
+      margin-bottom: 10px;
+    }
+
+    .edit-box {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 12px;
+      margin-top: 10px;
+    }
+
+    .public-mode {
+      display: none !important;
+    }
+
+    .public-note {
+      background: #eef2ff;
+      color: #3730a3;
+      border-radius: 14px;
+      padding: 12px;
+      font-size: 14px;
+      margin-bottom: 12px;
+      line-height: 1.6;
+    }
+
+    .loading {
+      background: #fff7ed;
+      color: #9a3412;
+      border-radius: 14px;
+      padding: 12px;
+      font-size: 14px;
+      margin-bottom: 12px;
+      display: none;
+    }
+
+    @media (max-width: 560px) {
+      .app { padding: 12px; }
+      .hero h1 { font-size: 24px; }
+      .stat { padding: 10px; }
+      .stat strong { font-size: 20px; }
+      .grid-2, .mode-buttons { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <section class="hero">
+      <h1 id="pageTitle">📦 器材借還系統</h1>
+      <p id="pageSubtitle">V2.1 雲端同步版：分類下拉選單。</p>
+    </section>
+
+    <div id="loadingBox" class="loading">資料處理中，請稍候...</div>
+
+    <section class="stats admin-only">
+      <div class="stat">
+        <strong id="totalCount">0</strong>
+        <span>總器材</span>
+      </div>
+      <div class="stat">
+        <strong id="availableCount">0</strong>
+        <span>可借用</span>
+      </div>
+      <div class="stat">
+        <strong id="borrowedCount">0</strong>
+        <span>借用中</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>借還入口</h2>
+      <p class="section-note">QRCode 掃進來後會看到這個區塊。</p>
+
+      <div id="publicNote" class="public-note" style="display:none;">
+        請選擇借用或歸還器材，送出後會同步到管理員後台。
+      </div>
+
+      <div class="mode-buttons">
+        <button id="borrowModeBtn" onclick="setMode('borrow')">我要借器材</button>
+        <button id="returnModeBtn" class="inactive" onclick="setMode('return')">我要還器材</button>
+      </div>
+
+      <div id="borrowPanel">
+        <input type="text" id="borrowerName" placeholder="借用人姓名">
+        <select id="borrowItemSelect"></select>
+
+        <div class="grid-2">
+          <input type="date" id="expectedReturnDate">
+          <input type="text" id="borrowPurpose" placeholder="用途，例如：會議使用">
+        </div>
+
+        <button onclick="borrowItem()">確認借用</button>
+      </div>
+
+      <div id="returnPanel" style="display:none;">
+        <select id="returnRecordSelect"></select>
+        <button class="btn-blue" onclick="returnSelectedItem()">確認歸還</button>
+      </div>
+    </section>
+
+    <section class="card admin-only">
+      <h2>目前借用中</h2>
+      <div id="borrowedList"></div>
+    </section>
+
+    <section class="card admin-only">
+      <h2>新增器材</h2>
+      <div class="grid-2">
+        <input type="text" id="itemName" placeholder="器材名稱，例如：投影機 A01">
+
+        <div>
+          <select id="itemCategorySelect" onchange="handleCategorySelectChange()"></select>
+          <input type="text" id="itemCategoryNew" placeholder="輸入新分類，例如：資訊設備" style="display:none;">
+        </div>
+      </div>
+
+      <button onclick="addItem()">新增器材</button>
+    </section>
+
+    <section class="card admin-only">
+      <h2>器材列表</h2>
+      <input type="text" id="searchInput" placeholder="搜尋器材名稱或分類" oninput="renderItems()">
+      <div id="itemList"></div>
+    </section>
+
+    <section class="card admin-only">
+      <h2>歷史紀錄</h2>
+      <div id="historyList"></div>
+    </section>
+
+    <section class="card admin-only">
+      <h2>管理工具</h2>
+      <button class="btn-gray" onclick="copyPublicUrl()">複製借還入口網址</button>
+      <button class="btn-gray" onclick="loadData()">重新整理資料</button>
+    </section>
+
+  </div>
+
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbzWCXI7WV2qGY4XuXZs7xb2u1gu_QW4YwtWvlMWH4469X-NeRX_17HMXPtOLv5vrjyX/exec";
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const pageMode = urlParams.get("mode") === "public" ? "public" : "admin";
+
+    let items = [];
+    let records = [];
+    let currentMode = "borrow";
+    let editingItemId = null;
+
+    const ADD_NEW_CATEGORY_VALUE = "__ADD_NEW_CATEGORY__";
+
+    function initPageMode() {
+      if (pageMode === "public") {
+        document.getElementById("pageTitle").textContent = "📦 器材借還入口";
+        document.getElementById("pageSubtitle").textContent = "請選擇借用或歸還器材。";
+        document.getElementById("publicNote").style.display = "block";
+
+        document.querySelectorAll(".admin-only").forEach(el => {
+          el.classList.add("public-mode");
+        });
+      }
+    }
+
+    function setLoading(isLoading) {
+      document.getElementById("loadingBox").style.display = isLoading ? "block" : "none";
+      document.querySelectorAll("button").forEach(btn => btn.disabled = isLoading);
+    }
+
+    async function apiGetData() {
+      const res = await fetch(`${API_URL}?action=getData`);
+      return await res.json();
+    }
+
+    async function apiPost(action, payload = {}) {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify({ action, ...payload })
+      });
+      return await res.json();
+    }
+
+    async function loadData() {
+      try {
+        setLoading(true);
+        const data = await apiGetData();
+
+        if (!data.ok) {
+          alert(data.error || "讀取資料失敗");
+          return;
+        }
+
+        items = normalizeItems(data.items || []);
+        records = normalizeRecords(data.records || []);
+        renderAll();
+      } catch (err) {
+        alert("讀取資料失敗：" + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function normalizeItems(list) {
+      return list.map(item => ({
+        id: String(item.id),
+        name: item.name || "",
+        category: item.category || "未分類",
+        available: String(item.available).toUpperCase() === "TRUE"
+      }));
+    }
+
+    function normalizeRecords(list) {
+      return list.map(record => ({
+        id: String(record.id),
+        itemId: String(record.itemId),
+        itemName: record.itemName || "",
+        itemCategory: record.itemCategory || "未分類",
+        borrower: record.borrower || "",
+        borrowTime: record.borrowTime || "",
+        expectedReturnDate: record.expectedReturnDate || "",
+        purpose: record.purpose || "",
+        returnTime: record.returnTime || "",
+        status: record.status || ""
+      }));
+    }
+
+    function getCategories() {
+      const baseCategories = ["未分類"];
+      const existingCategories = items
+        .map(item => item.category || "未分類")
+        .filter(Boolean);
+
+      return [...new Set([...baseCategories, ...existingCategories])];
+    }
+
+    function renderCategorySelects() {
+      renderAddCategorySelect();
+      renderVisibleEditCategorySelects();
+    }
+
+    function renderAddCategorySelect() {
+      if (pageMode === "public") return;
+
+      const select = document.getElementById("itemCategorySelect");
+      const currentValue = select.value || "未分類";
+      const categories = getCategories();
+
+      select.innerHTML = `
+        ${categories.map(category => `
+          <option value="${escapeHtml(category)}">${escapeHtml(category)}</option>
+        `).join("")}
+        <option value="${ADD_NEW_CATEGORY_VALUE}">＋新增分類</option>
+      `;
+
+      if (categories.includes(currentValue)) {
+        select.value = currentValue;
+      } else {
+        select.value = "未分類";
+      }
+
+      handleCategorySelectChange();
+    }
+
+    function handleCategorySelectChange() {
+      const select = document.getElementById("itemCategorySelect");
+      const newInput = document.getElementById("itemCategoryNew");
+
+      if (select.value === ADD_NEW_CATEGORY_VALUE) {
+        newInput.style.display = "block";
+        newInput.focus();
+      } else {
+        newInput.style.display = "none";
+        newInput.value = "";
+      }
+    }
+
+    function getAddCategoryValue() {
+      const select = document.getElementById("itemCategorySelect");
+      const newInput = document.getElementById("itemCategoryNew");
+
+      if (select.value === ADD_NEW_CATEGORY_VALUE) {
+        return newInput.value.trim() || "未分類";
+      }
+
+      return select.value || "未分類";
+    }
+
+    function renderVisibleEditCategorySelects() {
+      if (!editingItemId) return;
+
+      const item = items.find(i => i.id === editingItemId);
+      if (!item) return;
+
+      const select = document.getElementById(`editCategorySelect-${editingItemId}`);
+      const newInput = document.getElementById(`editCategoryNew-${editingItemId}`);
+
+      if (!select || !newInput) return;
+
+      const categories = getCategories();
+      const currentCategory = item.category || "未分類";
+
+      select.innerHTML = `
+        ${categories.map(category => `
+          <option value="${escapeHtml(category)}">${escapeHtml(category)}</option>
+        `).join("")}
+        <option value="${ADD_NEW_CATEGORY_VALUE}">＋新增分類</option>
+      `;
+
+      select.value = categories.includes(currentCategory) ? currentCategory : "未分類";
+      newInput.style.display = "none";
+      newInput.value = "";
+    }
+
+    function handleEditCategorySelectChange(itemId) {
+      const select = document.getElementById(`editCategorySelect-${itemId}`);
+      const newInput = document.getElementById(`editCategoryNew-${itemId}`);
+
+      if (select.value === ADD_NEW_CATEGORY_VALUE) {
+        newInput.style.display = "block";
+        newInput.focus();
+      } else {
+        newInput.style.display = "none";
+        newInput.value = "";
+      }
+    }
+
+    function getEditCategoryValue(itemId) {
+      const select = document.getElementById(`editCategorySelect-${itemId}`);
+      const newInput = document.getElementById(`editCategoryNew-${itemId}`);
+
+      if (select.value === ADD_NEW_CATEGORY_VALUE) {
+        return newInput.value.trim() || "未分類";
+      }
+
+      return select.value || "未分類";
+    }
+
+    function isOverdue(dateStr) {
+      if (!dateStr) return false;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const target = new Date(dateStr);
+      target.setHours(0, 0, 0, 0);
+
+      return target < today;
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+
+      document.getElementById("borrowPanel").style.display = mode === "borrow" ? "block" : "none";
+      document.getElementById("returnPanel").style.display = mode === "return" ? "block" : "none";
+
+      document.getElementById("borrowModeBtn").classList.toggle("inactive", mode !== "borrow");
+      document.getElementById("returnModeBtn").classList.toggle("inactive", mode !== "return");
+
+      renderBorrowSelect();
+      renderReturnSelect();
+    }
+
+    async function addItem() {
+      const nameInput = document.getElementById("itemName");
+
+      const name = nameInput.value.trim();
+      const category = getAddCategoryValue();
+
+      if (!name) return alert("請輸入器材名稱");
+
+      try {
+        setLoading(true);
+
+        const data = await apiPost("addItem", { name, category });
+
+        if (!data.ok) return alert(data.error || "新增失敗");
+
+        items = normalizeItems(data.items || []);
+        records = normalizeRecords(data.records || []);
+
+        nameInput.value = "";
+        document.getElementById("itemCategorySelect").value = category;
+        document.getElementById("itemCategoryNew").value = "";
+        document.getElementById("itemCategoryNew").style.display = "none";
+
+        renderAll();
+      } catch (err) {
+        alert("新增失敗：" + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    async function borrowItem() {
+      const borrowerInput = document.getElementById("borrowerName");
+      const select = document.getElementById("borrowItemSelect");
+      const expectedInput = document.getElementById("expectedReturnDate");
+      const purposeInput = document.getElementById("borrowPurpose");
+
+      const borrower = borrowerInput.value.trim();
+      const itemId = select.value;
+      const expectedReturnDate = expectedInput.value;
+      const purpose = purposeInput.value.trim();
+
+      if (!borrower) return alert("請輸入借用人姓名");
+      if (!itemId) return alert("請選擇器材");
+
+      try {
+        setLoading(true);
+
+        const data = await apiPost("borrowItem", {
+          itemId,
+          borrower,
+          expectedReturnDate,
+          purpose
+        });
+
+        if (!data.ok) return alert(data.error || "借用失敗");
+
+        items = normalizeItems(data.items || []);
+        records = normalizeRecords(data.records || []);
+
+        borrowerInput.value = "";
+        select.value = "";
+        expectedInput.value = "";
+        purposeInput.value = "";
+
+        renderAll();
+        alert("借用登記完成");
+      } catch (err) {
+        alert("借用失敗：" + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    async function returnSelectedItem() {
+      const recordId = document.getElementById("returnRecordSelect").value;
+      if (!recordId) return alert("請選擇要歸還的器材");
+      await returnItem(recordId);
+    }
+
+    async function returnItem(recordId) {
+      const record = records.find(r => r.id === String(recordId));
+      if (!record) return alert("找不到借用紀錄");
+
+      const ok = confirm(`確認歸還「${record.itemName}」嗎？`);
+      if (!ok) return;
+
+      try {
+        setLoading(true);
+
+        const data = await apiPost("returnItem", { recordId });
+
+        if (!data.ok) return alert(data.error || "歸還失敗");
+
+        items = normalizeItems(data.items || []);
+        records = normalizeRecords(data.records || []);
+
+        renderAll();
+        alert("歸還完成");
+      } catch (err) {
+        alert("歸還失敗：" + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function startEditItem(itemId) {
+      editingItemId = String(itemId);
+      renderItems();
+      renderVisibleEditCategorySelects();
+    }
+
+    function cancelEditItem() {
+      editingItemId = null;
+      renderItems();
+    }
+
+    async function saveEditItem(itemId) {
+      const nameInput = document.getElementById(`editName-${itemId}`);
+
+      const name = nameInput.value.trim();
+      const category = getEditCategoryValue(itemId);
+
+      if (!name) return alert("器材名稱不能空白");
+
+      try {
+        setLoading(true);
+
+        const data = await apiPost("updateItem", {
+          id: String(itemId),
+          name,
+          category
+        });
+
+        if (!data.ok) return alert(data.error || "更新失敗");
+
+        items = normalizeItems(data.items || []);
+        records = normalizeRecords(data.records || []);
+        editingItemId = null;
+
+        renderAll();
+      } catch (err) {
+        alert("更新失敗：" + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    async function deleteItem(itemId) {
+      const item = items.find(i => i.id === String(itemId));
+      if (!item) return;
+
+      const ok = confirm(`確定要刪除「${item.name}」嗎？`);
+      if (!ok) return;
+
+      try {
+        setLoading(true);
+
+        const data = await apiPost("deleteItem", { id: String(itemId) });
+
+        if (!data.ok) return alert(data.error || "刪除失敗");
+
+        items = normalizeItems(data.items || []);
+        records = normalizeRecords(data.records || []);
+        renderAll();
+      } catch (err) {
+        alert("刪除失敗：" + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function renderStats() {
+      if (pageMode === "public") return;
+
+      document.getElementById("totalCount").textContent = items.length;
+      document.getElementById("availableCount").textContent = items.filter(i => i.available).length;
+      document.getElementById("borrowedCount").textContent = items.filter(i => !i.available).length;
+    }
+
+    function renderBorrowSelect() {
+      const select = document.getElementById("borrowItemSelect");
+      const availableItems = items.filter(item => item.available);
+
+      if (availableItems.length === 0) {
+        select.innerHTML = `<option value="">目前沒有可借用器材</option>`;
+        return;
+      }
+
+      select.innerHTML = `
+        <option value="">請選擇要借的器材</option>
+        ${availableItems.map(item => `
+          <option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}｜${escapeHtml(item.category)}</option>
+        `).join("")}
+      `;
+    }
+
+    function renderReturnSelect() {
+      const select = document.getElementById("returnRecordSelect");
+      const borrowedRecords = records.filter(r => r.status === "borrowed");
+
+      if (borrowedRecords.length === 0) {
+        select.innerHTML = `<option value="">目前沒有借用中的器材</option>`;
+        return;
+      }
+
+      select.innerHTML = `
+        <option value="">請選擇要歸還的器材</option>
+        ${borrowedRecords.map(record => `
+          <option value="${escapeHtml(record.id)}">
+            ${escapeHtml(record.itemName)}｜借用人：${escapeHtml(record.borrower)}｜${record.borrowTime}
+          </option>
+        `).join("")}
+      `;
+    }
+
+    function renderItems() {
+      if (pageMode === "public") return;
+
+      const list = document.getElementById("itemList");
+      const keyword = document.getElementById("searchInput").value.trim().toLowerCase();
+
+      let filtered = items;
+
+      if (keyword) {
+        filtered = items.filter(item =>
+          item.name.toLowerCase().includes(keyword) ||
+          item.category.toLowerCase().includes(keyword)
+        );
+      }
+
+      if (filtered.length === 0) {
+        list.innerHTML = `<div class="empty">找不到符合的器材</div>`;
+        return;
+      }
+
+      list.innerHTML = filtered.map(item => {
+        if (editingItemId === item.id) {
+          return `
+            <div class="item">
+              <div class="edit-box">
+                <strong>編輯器材</strong>
+
+                <input id="editName-${escapeHtml(item.id)}" type="text" value="${escapeHtml(item.name)}">
+
+                <select
+                  id="editCategorySelect-${escapeHtml(item.id)}"
+                  onchange="handleEditCategorySelectChange('${escapeJs(item.id)}')"
+                ></select>
+
+                <input
+                  id="editCategoryNew-${escapeHtml(item.id)}"
+                  type="text"
+                  placeholder="輸入新分類，例如：資訊設備"
+                  style="display:none;"
+                >
+
+                <div class="grid-2">
+                  <button class="btn-green" onclick="saveEditItem('${escapeJs(item.id)}')">儲存</button>
+                  <button class="btn-gray" onclick="cancelEditItem()">取消</button>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="item">
+            <div class="title-row">
+              <strong>${escapeHtml(item.name)}</strong>
+              <span class="badge ${item.available ? "available" : "borrowed"}">
+                ${item.available ? "可借用" : "借用中"}
+              </span>
+            </div>
+
+            <div class="small">分類：${escapeHtml(item.category)}</div>
+
+            <div class="grid-2">
+              <button class="btn-orange" onclick="startEditItem('${escapeJs(item.id)}')">編輯</button>
+              ${item.available ? `
+                <button class="btn-red" onclick="deleteItem('${escapeJs(item.id)}')">刪除</button>
+              ` : `
+                <button class="btn-gray" disabled>借用中不可刪除</button>
+              `}
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderBorrowedList() {
+      if (pageMode === "public") return;
+
+      const list = document.getElementById("borrowedList");
+      const borrowedRecords = records.filter(r => r.status === "borrowed");
+
+      if (borrowedRecords.length === 0) {
+        list.innerHTML = `<div class="empty">目前沒有器材借用中</div>`;
+        return;
+      }
+
+      list.innerHTML = borrowedRecords.map(record => {
+        const overdue = isOverdue(record.expectedReturnDate);
+
+        return `
+          <div class="record">
+            <div class="title-row">
+              <strong>${escapeHtml(record.itemName)}</strong>
+              <span class="badge ${overdue ? "overdue" : "borrowed"}">
+                ${overdue ? "逾期" : "借用中"}
+              </span>
+            </div>
+
+            <div>借用人：${escapeHtml(record.borrower)}</div>
+            <div>分類：${escapeHtml(record.itemCategory)}</div>
+            <div>借出時間：${record.borrowTime}</div>
+            <div>預計歸還：${record.expectedReturnDate || "未填"}</div>
+            <div>用途：${escapeHtml(record.purpose || "未填")}</div>
+
+            <button class="btn-blue" onclick="returnItem('${escapeJs(record.id)}')">歸還</button>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderHistory() {
+      if (pageMode === "public") return;
+
+      const list = document.getElementById("historyList");
+
+      if (records.length === 0) {
+        list.innerHTML = `<div class="empty">尚無借還紀錄</div>`;
+        return;
+      }
+
+      const recentRecords = [...records].reverse();
+
+      list.innerHTML = recentRecords.map(record => `
+        <div class="record">
+          <div class="title-row">
+            <strong>${escapeHtml(record.itemName)}</strong>
+            <span class="badge ${record.status === "borrowed" ? "borrowed" : "available"}">
+              ${record.status === "borrowed" ? "借用中" : "已歸還"}
+            </span>
+          </div>
+
+          <div>借用人：${escapeHtml(record.borrower)}</div>
+          <div>分類：${escapeHtml(record.itemCategory)}</div>
+          <div>借出：${record.borrowTime}</div>
+          <div>預計歸還：${record.expectedReturnDate || "未填"}</div>
+          <div>實際歸還：${record.returnTime || "尚未歸還"}</div>
+          <div>用途：${escapeHtml(record.purpose || "未填")}</div>
+        </div>
+      `).join("");
+    }
+
+    function copyPublicUrl() {
+      const baseUrl = window.location.href.split("?")[0];
+      const publicUrl = `${baseUrl}?mode=public`;
+
+      navigator.clipboard.writeText(publicUrl)
+        .then(() => alert("已複製借還入口網址"))
+        .catch(() => prompt("請手動複製這個網址：", publicUrl));
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function escapeJs(text) {
+      return String(text)
+        .replaceAll("\\", "\\\\")
+        .replaceAll("'", "\\'")
+        .replaceAll('"', '\\"')
+        .replaceAll("\n", "\\n")
+        .replaceAll("\r", "\\r");
+    }
+
+    function renderAll() {
+      renderStats();
+      renderCategorySelects();
+      renderBorrowSelect();
+      renderReturnSelect();
+      renderItems();
+      renderBorrowedList();
+      renderHistory();
+    }
+
+    initPageMode();
+    setMode("borrow");
+    loadData();
+  </script>
+</body>
+</html>
