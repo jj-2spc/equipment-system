@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>器材借還系統 V2.1</title>
+  <title>器材借還系統 V2.2</title>
 
   <style>
     * { box-sizing: border-box; }
@@ -241,7 +241,7 @@
 
     <section class="hero">
       <h1 id="pageTitle">📦 器材借還系統</h1>
-      <p id="pageSubtitle">V2.1 雲端同步版：分類下拉選單。</p>
+      <p id="pageSubtitle">V2.2 雲端同步版：歷史紀錄時間修正版。</p>
     </section>
 
     <div id="loadingBox" class="loading">資料處理中，請稍候...</div>
@@ -408,18 +408,82 @@
     }
 
     function normalizeRecords(list) {
-      return list.map(record => ({
-        id: String(record.id),
-        itemId: String(record.itemId),
-        itemName: record.itemName || "",
-        itemCategory: record.itemCategory || "未分類",
-        borrower: record.borrower || "",
-        borrowTime: record.borrowTime || "",
-        expectedReturnDate: record.expectedReturnDate || "",
-        purpose: record.purpose || "",
-        returnTime: record.returnTime || "",
-        status: record.status || ""
-      }));
+      return list.map(record => {
+        const borrowTime = getRecordField(record, "borrowTime");
+        const expectedReturnDate = getRecordField(record, "expectedReturnDate");
+        const returnTime = getRecordField(record, "returnTime");
+
+        return {
+          id: String(getRecordField(record, "id")),
+          itemId: String(getRecordField(record, "itemId")),
+          itemName: getRecordField(record, "itemName") || "",
+          itemCategory: getRecordField(record, "itemCategory") || "未分類",
+          borrower: getRecordField(record, "borrower") || "",
+          borrowTime: formatDisplayDateTime(borrowTime),
+          expectedReturnDate: formatDisplayDateOnly(expectedReturnDate),
+          purpose: getRecordField(record, "purpose") || "",
+          returnTime: formatDisplayDateTime(returnTime),
+          status: getRecordField(record, "status") || ""
+        };
+      });
+    }
+
+    function getRecordField(record, fieldName) {
+      if (!record) return "";
+
+      if (record[fieldName] !== undefined && record[fieldName] !== null) {
+        return record[fieldName];
+      }
+
+      const matchedKey = Object.keys(record).find(key =>
+        String(key).trim().toLowerCase() === String(fieldName).trim().toLowerCase()
+      );
+
+      if (!matchedKey) return "";
+
+      return record[matchedKey] === undefined || record[matchedKey] === null
+        ? ""
+        : record[matchedKey];
+    }
+
+    function formatDisplayDateTime(value) {
+      if (!value) return "";
+
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) return "";
+
+        const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        if (isoMatch) {
+          return `${isoMatch[1]}/${isoMatch[2]}/${isoMatch[3]} ${isoMatch[4]}:${isoMatch[5]}`;
+        }
+
+        return trimmed;
+      }
+
+      if (typeof value === "number") {
+        return String(value);
+      }
+
+      return String(value);
+    }
+
+    function formatDisplayDateOnly(value) {
+      if (!value) return "";
+
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) return "";
+
+        const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (isoMatch) {
+          return `${isoMatch[1]}/${isoMatch[2]}/${isoMatch[3]}`;
+        }
+
+        return trimmed;
+      }
+
+      return String(value);
     }
 
     function getCategories() {
@@ -907,7 +971,6 @@
           <div>借用人：${escapeHtml(record.borrower)}</div>
           <div>分類：${escapeHtml(record.itemCategory)}</div>
           <div>借出：${record.borrowTime}</div>
-          <div>預計歸還：${record.expectedReturnDate || "未填"}</div>
           <div>實際歸還：${record.returnTime || "尚未歸還"}</div>
           <div>用途：${escapeHtml(record.purpose || "未填")}</div>
         </div>
@@ -951,34 +1014,44 @@
       renderHistory();
     }
 
-    checkAdminAccess();
-    setMode("borrow");
-    loadData();
+    if (checkAdminAccess()) {
+      setMode("borrow");
+      loadData();
+    }
 
-function checkAdminAccess() {
-  if (pageMode === "public") {
-    initPageMode();
-    return;
-  }
+    function checkAdminAccess() {
+      if (pageMode === "public") {
+        initPageMode();
+        return true;
+      }
 
-  const password = prompt("請輸入管理員密碼");
+      const loginKey = "equipmentAdminLoggedIn";
 
-  if (password !== ADMIN_PASSWORD) {
-    alert("密碼錯誤");
-    document.body.innerHTML = `
-      <div style="
-        font-family:sans-serif;
-        padding:40px;
-        text-align:center;
-      ">
-        <h1>⛔ 無權限存取</h1>
-      </div>
-    `;
-    return;
-  }
+      if (sessionStorage.getItem(loginKey) === "true") {
+        initPageMode();
+        return true;
+      }
 
-  initPageMode();
-}
+      const password = prompt("請輸入管理員密碼");
+
+      if (password !== ADMIN_PASSWORD) {
+        alert("密碼錯誤");
+        document.body.innerHTML = `
+          <div style="
+            font-family:sans-serif;
+            padding:40px;
+            text-align:center;
+          ">
+            <h1>⛔ 無權限存取</h1>
+          </div>
+        `;
+        return false;
+      }
+
+      sessionStorage.setItem(loginKey, "true");
+      initPageMode();
+      return true;
+    }
   </script>
 </body>
 </html>
