@@ -83,12 +83,35 @@
 
     input, select, button {
       width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      display: block;
       padding: 12px;
       margin-top: 10px;
       border-radius: 12px;
       border: 1px solid #d1d5db;
       font-size: 16px;
       font-family: inherit;
+    }
+
+    input[type="date"] {
+      min-height: 48px;
+      background: #fff;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .form-field {
+      min-width: 0;
+    }
+
+    .field-label {
+      display: block;
+      margin-top: 10px;
+      margin-bottom: -4px;
+      color: #4b5563;
+      font-size: 14px;
+      font-weight: 700;
     }
 
     button {
@@ -128,8 +151,14 @@
 
     .grid-2 {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 10px;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .grid-2 > * {
+      min-width: 0;
     }
 
     .item, .record {
@@ -231,7 +260,8 @@
       .hero h1 { font-size: 24px; }
       .stat { padding: 10px; }
       .stat strong { font-size: 20px; }
-      .grid-2, .mode-buttons { grid-template-columns: 1fr; }
+      .grid-2, .mode-buttons { grid-template-columns: 1fr; overflow: visible; }
+      input, select, button { font-size: 16px; }
     }
   </style>
 </head>
@@ -278,9 +308,15 @@
         <input type="text" id="borrowerName" placeholder="借用人姓名">
         <select id="borrowItemSelect"></select>
 
-        <div class="grid-2">
-          <input type="date" id="expectedReturnDate">
-          <input type="text" id="borrowPurpose" placeholder="用途，例如：會議使用">
+        <div class="grid-2 borrow-extra-fields">
+          <div class="form-field">
+            <label class="field-label" for="expectedReturnDate">預計歸還日期</label>
+            <input type="date" id="expectedReturnDate" aria-label="預計歸還日期">
+          </div>
+          <div class="form-field">
+            <label class="field-label" for="borrowPurpose">用途</label>
+            <input type="text" id="borrowPurpose" placeholder="例如：會議使用" aria-label="用途">
+          </div>
         </div>
 
         <button onclick="borrowItem()">確認借用</button>
