@@ -203,7 +203,9 @@
     .public-mode {
       display: none !important;
     }
-
+    .admin-mode-hidden {
+      display: none !important;
+    }
     .public-note {
       background: #eef2ff;
       color: #3730a3;
@@ -259,7 +261,7 @@
       </div>
     </section>
 
-    <section class="card">
+    <section class="card public-only">
       <h2>借還入口</h2>
       <p class="section-note">QRCode 掃進來後會看到這個區塊。</p>
 
@@ -330,6 +332,7 @@
 
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbzWCXI7WV2qGY4XuXZs7xb2u1gu_QW4YwtWvlMWH4469X-NeRX_17HMXPtOLv5vrjyX/exec";
+    const ADMIN_PASSWORD = "jjpolice2508";
 
     const urlParams = new URLSearchParams(window.location.search);
     const pageMode = urlParams.get("mode") === "public" ? "public" : "admin";
@@ -350,6 +353,10 @@
         document.querySelectorAll(".admin-only").forEach(el => {
           el.classList.add("public-mode");
         });
+      } else {
+        document.querySelectorAll(".public-only").forEach(el => {
+          el.classList.add("admin-mode-hidden");
+       });
       }
     }
 
@@ -944,9 +951,34 @@
       renderHistory();
     }
 
-    initPageMode();
+    checkAdminAccess();
     setMode("borrow");
     loadData();
+
+function checkAdminAccess() {
+  if (pageMode === "public") {
+    initPageMode();
+    return;
+  }
+
+  const password = prompt("請輸入管理員密碼");
+
+  if (password !== ADMIN_PASSWORD) {
+    alert("密碼錯誤");
+    document.body.innerHTML = `
+      <div style="
+        font-family:sans-serif;
+        padding:40px;
+        text-align:center;
+      ">
+        <h1>⛔ 無權限存取</h1>
+      </div>
+    `;
+    return;
+  }
+
+  initPageMode();
+}
   </script>
 </body>
 </html>
