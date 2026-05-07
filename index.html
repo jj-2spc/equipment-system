@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>器材借還系統 V3.3</title>
+  <title>器材借還系統 V3.4</title>
 
   <style>
     * { box-sizing: border-box; }
@@ -20,6 +20,13 @@
       max-width: 760px;
       margin: 0 auto;
       padding: 16px;
+      transition: margin 0.2s ease, max-width 0.2s ease;
+    }
+
+    body.admin-logged-in .app {
+      max-width: none;
+      margin-left: 268px;
+      padding: 24px;
     }
 
     .hero {
@@ -267,6 +274,141 @@
       font-size: 16px;
     }
 
+
+
+    .admin-sidebar {
+      position: fixed;
+      left: 16px;
+      top: 16px;
+      bottom: 16px;
+      width: 236px;
+      background: #111827;
+      color: white;
+      border-radius: 22px;
+      padding: 16px;
+      box-shadow: 0 18px 45px rgba(17, 24, 39, 0.28);
+      z-index: 50;
+      overflow-y: auto;
+    }
+
+    .sidebar-title {
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .sidebar-subtitle {
+      font-size: 13px;
+      color: #cbd5e1;
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+
+    .sidebar-nav button {
+      margin-top: 8px;
+      text-align: left;
+      background: transparent;
+      color: #e5e7eb;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      padding: 11px 12px;
+    }
+
+    .sidebar-nav button:hover,
+    .sidebar-nav button.active {
+      background: white;
+      color: #111827;
+    }
+
+    .sidebar-footer {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,0.14);
+      font-size: 12px;
+      color: #cbd5e1;
+      line-height: 1.5;
+    }
+
+    body.admin-logged-in .hero {
+      display: none;
+    }
+
+    body.admin-logged-in .user-bar {
+      position: sticky;
+      top: 16px;
+      z-index: 20;
+    }
+
+    body.admin-logged-in .admin-panel {
+      display: none !important;
+    }
+
+    body.admin-logged-in .admin-panel.active {
+      display: block !important;
+    }
+
+    body.admin-logged-in .stats.admin-panel.active {
+      display: grid !important;
+    }
+
+    body.admin-logged-in .admin-panel.hidden {
+      display: none !important;
+    }
+
+    .dashboard-title {
+      margin: 4px 0 14px;
+      font-size: 26px;
+      font-weight: 900;
+    }
+
+    .dashboard-note {
+      color: #6b7280;
+      line-height: 1.7;
+      margin: -8px 0 16px;
+    }
+
+    @media (max-width: 760px) {
+      body.admin-logged-in .app {
+        margin-left: 0;
+        padding: 12px;
+        padding-top: 96px;
+      }
+
+      .admin-sidebar {
+        left: 10px;
+        right: 10px;
+        top: 10px;
+        bottom: auto;
+        width: auto;
+        border-radius: 18px;
+        padding: 10px;
+        max-height: 82px;
+        overflow-x: auto;
+        overflow-y: hidden;
+      }
+
+      .sidebar-title, .sidebar-subtitle, .sidebar-footer {
+        display: none;
+      }
+
+      .sidebar-nav {
+        display: flex;
+        gap: 8px;
+        min-width: max-content;
+      }
+
+      .sidebar-nav button {
+        width: auto;
+        white-space: nowrap;
+        margin-top: 0;
+        padding: 10px 12px;
+      }
+
+      body.admin-logged-in .user-bar {
+        top: 92px;
+      }
+    }
+
     @media (max-width: 560px) {
       .app { padding: 12px; }
       .hero h1 { font-size: 24px; }
@@ -285,7 +427,7 @@
 
     <section class="hero">
       <h1 id="pageTitle">📦 器材借還系統</h1>
-      <p id="pageSubtitle">V3.3 多管理員版：Enter 登入、選單資料管理。</p>
+      <p id="pageSubtitle">V3.4 多管理員版：側邊選單儀表板。</p>
     </section>
 
     <div id="loadingBox" class="loading">資料處理中，請稍候...</div>
@@ -306,7 +448,27 @@
       <button class="btn-gray" onclick="logoutAdmin()">登出</button>
     </div>
 
-    <section class="stats admin-only admin-auth-only hidden">
+    <aside id="adminSidebar" class="admin-sidebar admin-only admin-auth-only hidden">
+      <div class="sidebar-title">📦 器材後台</div>
+      <div class="sidebar-subtitle">用左側選單切換功能，不再一路往下滑到天荒地老。</div>
+      <nav class="sidebar-nav">
+        <button class="active" data-panel-btn="dashboard" onclick="showAdminPanel('dashboard')">📊 儀表板</button>
+        <button data-panel-btn="add" onclick="showAdminPanel('add')">➕ 新增器材</button>
+        <button data-panel-btn="items" onclick="showAdminPanel('items')">📋 器材列表</button>
+        <button data-panel-btn="history" onclick="showAdminPanel('history')">🕘 歷史紀錄</button>
+        <button class="admin-auth-only superadmin-only hidden" data-panel-btn="admins" onclick="showAdminPanel('admins')">👥 管理員管理</button>
+        <button class="admin-auth-only superadmin-only hidden" data-panel-btn="options" onclick="showAdminPanel('options')">🧩 資料選單管理</button>
+        <button data-panel-btn="tools" onclick="showAdminPanel('tools')">⚙️ 管理工具</button>
+      </nav>
+      <div class="sidebar-footer">目前版本：V3.4<br>Google Sheet 雲端同步</div>
+    </aside>
+
+    <div class="admin-only admin-auth-only admin-panel active hidden" data-panel="dashboard">
+      <div class="dashboard-title">總覽儀表板</div>
+      <div class="dashboard-note">這裡只放最重要的狀態資訊。其他功能請從側邊選單切換。</div>
+    </div>
+
+    <section class="stats admin-only admin-auth-only admin-panel active hidden" data-panel="dashboard">
       <div class="stat">
         <strong id="totalCount">0</strong>
         <span>總器材</span>
@@ -353,12 +515,12 @@
       </div>
     </section>
 
-    <section class="card admin-only admin-auth-only hidden">
+    <section class="card admin-only admin-auth-only admin-panel active hidden" data-panel="dashboard">
       <h2>目前借用中</h2>
       <div id="borrowedList"></div>
     </section>
 
-    <section class="card admin-only admin-auth-only hidden">
+    <section class="card admin-only admin-auth-only admin-panel hidden" data-panel="add">
       <h2>新增器材</h2>
       <div class="grid-2">
         <input type="text" id="itemName" placeholder="器材名稱，例如：投影機 A01">
@@ -384,18 +546,18 @@
       <button onclick="addItem()">新增器材</button>
     </section>
 
-    <section class="card admin-only admin-auth-only hidden">
+    <section class="card admin-only admin-auth-only admin-panel hidden" data-panel="items">
       <h2>器材列表</h2>
       <input type="text" id="searchInput" placeholder="搜尋器材名稱、分類、保管單位、保管人" oninput="renderItems()">
       <div id="itemList"></div>
     </section>
 
-    <section class="card admin-only admin-auth-only hidden">
+    <section class="card admin-only admin-auth-only admin-panel hidden" data-panel="history">
       <h2>歷史紀錄</h2>
       <div id="historyList"></div>
     </section>
 
-    <section id="adminManageCard" class="card admin-only admin-auth-only superadmin-only hidden">
+    <section id="adminManageCard" class="card admin-only admin-auth-only superadmin-only admin-panel hidden" data-panel="admins">
       <h2>管理員管理</h2>
       <p class="section-note">只有總管理人可以新增、啟用或停用一般管理員。</p>
 
@@ -415,7 +577,7 @@
       <div id="adminList"></div>
     </section>
 
-    <section id="optionManageCard" class="card admin-only admin-auth-only superadmin-only hidden">
+    <section id="optionManageCard" class="card admin-only admin-auth-only superadmin-only admin-panel hidden" data-panel="options">
       <h2>資料選單管理</h2>
       <p class="section-note">只有總管理人可以修改。改名後會套用到所有器材資料。</p>
 
@@ -442,7 +604,7 @@
     </section>
 
 
-    <section class="card admin-only admin-auth-only hidden">
+    <section class="card admin-only admin-auth-only admin-panel hidden" data-panel="tools">
       <h2>管理工具</h2>
       <button class="btn-gray" onclick="copyPublicUrl()">複製借還入口網址</button>
       <button class="btn-gray" onclick="loadData()">重新整理資料</button>
@@ -463,6 +625,7 @@
     let currentMode = "borrow";
     let editingItemId = null;
     let currentUser = null;
+    let currentPanel = "dashboard";
 
     const ADD_NEW_CATEGORY_VALUE = "__ADD_NEW_CATEGORY__";
 
@@ -582,6 +745,7 @@
     }
 
     function showAdminUI() {
+      document.body.classList.add("admin-logged-in");
       document.getElementById("loginCard").classList.add("hidden");
       document.querySelectorAll(".admin-auth-only").forEach(el => el.classList.remove("hidden"));
 
@@ -590,6 +754,30 @@
 
       document.querySelectorAll(".superadmin-only").forEach(el => {
         el.classList.toggle("hidden", !isSuperAdmin());
+      });
+
+      if (!isSuperAdmin() && (currentPanel === "admins" || currentPanel === "options")) {
+        currentPanel = "dashboard";
+      }
+
+      showAdminPanel(currentPanel || "dashboard");
+    }
+
+    function showAdminPanel(panel) {
+      if (pageMode === "public") return;
+
+      if ((panel === "admins" || panel === "options") && !isSuperAdmin()) {
+        panel = "dashboard";
+      }
+
+      currentPanel = panel;
+
+      document.querySelectorAll(".admin-panel").forEach(el => {
+        el.classList.toggle("active", el.dataset.panel === panel);
+      });
+
+      document.querySelectorAll("[data-panel-btn]").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.panelBtn === panel);
       });
     }
 
