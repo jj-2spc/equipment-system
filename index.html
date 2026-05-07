@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>器材借還系統 V3.1</title>
+  <title>器材借還系統 V3.3</title>
 
   <style>
     * { box-sizing: border-box; }
@@ -254,6 +254,19 @@
       padding: 9px 14px;
     }
 
+    .option-manager-block {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 12px;
+      margin-top: 12px;
+    }
+
+    .option-manager-block h3 {
+      margin: 0 0 6px;
+      font-size: 16px;
+    }
+
     @media (max-width: 560px) {
       .app { padding: 12px; }
       .hero h1 { font-size: 24px; }
@@ -272,7 +285,7 @@
 
     <section class="hero">
       <h1 id="pageTitle">📦 器材借還系統</h1>
-      <p id="pageSubtitle">V3.1 多管理員版：保管單位、保管人下拉選單。</p>
+      <p id="pageSubtitle">V3.3 多管理員版：Enter 登入、選單資料管理。</p>
     </section>
 
     <div id="loadingBox" class="loading">資料處理中，請稍候...</div>
@@ -402,6 +415,33 @@
       <div id="adminList"></div>
     </section>
 
+    <section id="optionManageCard" class="card admin-only admin-auth-only superadmin-only hidden">
+      <h2>資料選單管理</h2>
+      <p class="section-note">只有總管理人可以修改。改名後會套用到所有器材資料。</p>
+
+      <div class="option-manager-block">
+        <h3>分類管理</h3>
+        <select id="manageCategorySelect"></select>
+        <input type="text" id="manageCategoryNewName" placeholder="輸入新的分類名稱">
+        <button class="btn-orange" onclick="renameOptionValue('category')">修改分類名稱</button>
+      </div>
+
+      <div class="option-manager-block">
+        <h3>保管單位管理</h3>
+        <select id="manageCustodianUnitSelect"></select>
+        <input type="text" id="manageCustodianUnitNewName" placeholder="輸入新的保管單位">
+        <button class="btn-orange" onclick="renameOptionValue('custodianUnit')">修改保管單位</button>
+      </div>
+
+      <div class="option-manager-block">
+        <h3>保管人管理</h3>
+        <select id="manageCustodianNameSelect"></select>
+        <input type="text" id="manageCustodianNameNewName" placeholder="輸入新的保管人姓名">
+        <button class="btn-orange" onclick="renameOptionValue('custodianName')">修改保管人</button>
+      </div>
+    </section>
+
+
     <section class="card admin-only admin-auth-only hidden">
       <h2>管理工具</h2>
       <button class="btn-gray" onclick="copyPublicUrl()">複製借還入口網址</button>
@@ -506,6 +546,23 @@
         setLoading(false);
       }
     }
+
+    function setupLoginEnterKey() {
+      if (pageMode === "public") return;
+
+      ["loginUsername", "loginPassword"].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+
+        el.addEventListener("keydown", event => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            loginAdmin();
+          }
+        });
+      });
+    }
+
 
     function restoreLoginSession() {
       if (pageMode === "public") return false;
@@ -1150,6 +1207,125 @@
       }
     }
 
+    function renderOptionManager() {
+      if (pageMode === "public" || !isSuperAdmin()) return;
+
+      renderOptionManagerSelect("manageCategorySelect", getCategories().filter(v => v !== "未分類"));
+      renderOptionManagerSelect("manageCustodianUnitSelect", getCustodianUnits().filter(v => v !== "未填"));
+      renderOptionManagerSelect("manageCustodianNameSelect", getCustodianNames().filter(v => v !== "未填"));
+    }
+
+    function renderOptionManagerSelect(selectId, values) {
+      const select = document.getElementById(selectId);
+      if (!select) return;
+
+      if (!values.length) {
+        select.innerHTML = `<option value="">目前沒有可修改的資料</option>`;
+        return;
+      }
+
+      const currentValue = select.value;
+
+      select.innerHTML = `
+        <option value="">請選擇要修改的項目</option>
+        ${values.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}
+      `;
+
+      if (values.includes(currentValue)) {
+        select.value = currentValue;
+      }
+    }
+
+    async function renameOptionValue(type) {
+      if (!isSuperAdmin()) return alert("只有總管理人可以修改選單資料");
+
+      const config = {
+        category: {
+          label: "分類",
+          selectId: "manageCategorySelect",
+          inputId: "manageCategoryNewName",
+          field: "category",
+          emptyValue: "未分類"
+        },
+        custodianUnit: {
+          label: "保管單位",
+          selectId: "manageCustodianUnitSelect",
+          inputId: "manageCustodianUnitNewName",
+          field: "custodianUnit",
+          emptyValue: ""
+        },
+        custodianName: {
+          label: "保管人",
+          selectId: "manageCustodianNameSelect",
+          inputId: "manageCustodianNameNewName",
+          field: "custodianName",
+          emptyValue: ""
+        }
+      }[type];
+
+      if (!config) return;
+
+      const select = document.getElementById(config.selectId);
+      const input = document.getElementById(config.inputId);
+
+      const oldValue = (select.value || "").trim();
+      const newValue = (input.value || "").trim();
+
+      if (!oldValue) return alert(`請先選擇要修改的${config.label}`);
+      if (!newValue) return alert(`請輸入新的${config.label}名稱`);
+      if (oldValue === newValue) return alert("新舊名稱相同，不需要修改");
+
+      const duplicate = items.some(item => String(item[config.field] || "").trim() === newValue);
+      if (duplicate) {
+        const okDuplicate = confirm(`「${newValue}」已經存在，仍要把「${oldValue}」合併成「${newValue}」嗎？`);
+        if (!okDuplicate) return;
+      }
+
+      const targetItems = items.filter(item => String(item[config.field] || "").trim() === oldValue);
+
+      if (!targetItems.length) {
+        alert(`找不到使用「${oldValue}」的器材`);
+        return;
+      }
+
+      const ok = confirm(`確定要把 ${targetItems.length} 筆器材的${config.label}「${oldValue}」改成「${newValue}」嗎？`);
+      if (!ok) return;
+
+      try {
+        setLoading(true);
+
+        let latestData = null;
+
+        for (const item of targetItems) {
+          const payload = {
+            ...authPayload(),
+            id: String(item.id),
+            name: item.name,
+            category: type === "category" ? newValue : item.category,
+            custodianUnit: type === "custodianUnit" ? newValue : item.custodianUnit,
+            custodianName: type === "custodianName" ? newValue : item.custodianName
+          };
+
+          latestData = await apiPost("updateItem", payload);
+
+          if (!latestData.ok) {
+            throw new Error(latestData.error || `修改${config.label}失敗`);
+          }
+        }
+
+        items = normalizeItems(latestData.items || []);
+        records = normalizeRecords(latestData.records || []);
+
+        input.value = "";
+        renderAll();
+        alert(`${config.label}已修改完成`);
+      } catch (err) {
+        alert("修改失敗：" + err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
     function renderStats() {
       if (pageMode === "public") return;
       document.getElementById("totalCount").textContent = items.length;
@@ -1389,9 +1565,11 @@
       renderBorrowedList();
       renderHistory();
       renderAdminList();
+      renderOptionManager();
     }
 
     initPageMode();
+    setupLoginEnterKey();
     setMode("borrow");
 
     if (pageMode === "public") {
