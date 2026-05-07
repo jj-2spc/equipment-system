@@ -590,18 +590,24 @@
     }
 
     function normalizeRecords(list) {
-      return list.map(record => ({
-        id: String(record.id),
-        itemId: String(record.itemId),
-        itemName: record.itemName || "",
-        itemCategory: record.itemCategory || "未分類",
-        borrower: record.borrower || "",
-        borrowTime: displayDateTime(record.borrowTime),
-        expectedReturnDate: displayDate(record.expectedReturnDate),
-        purpose: record.purpose || "",
-        returnTime: displayDateTime(record.returnTime),
-        status: record.status || ""
-      }));
+      return list.map(record => {
+        const borrowTime = pickField(record, ["borrowTime", "borrow time", "借出", "借出時間"]);
+        const returnTime = pickField(record, ["returnTime", "return time", "實際歸還", "歸還時間"]);
+        const expectedReturnDate = pickField(record, ["expectedReturnDate", "expected return date", "預計歸還"]);
+
+        return {
+          id: String(pickField(record, ["id"]) || ""),
+          itemId: String(pickField(record, ["itemId", "item id"]) || ""),
+          itemName: pickField(record, ["itemName", "item name", "器材名稱"]) || "",
+          itemCategory: pickField(record, ["itemCategory", "item category", "分類"]) || "未分類",
+          borrower: pickField(record, ["borrower", "借用人"]) || "",
+          borrowTime: displayDateTime(borrowTime),
+          expectedReturnDate: displayDate(expectedReturnDate),
+          purpose: pickField(record, ["purpose", "用途"]) || "",
+          returnTime: displayDateTime(returnTime),
+          status: pickField(record, ["status", "狀態"]) || ""
+        };
+      });
     }
 
     function normalizeAdmins(list) {
@@ -614,6 +620,34 @@
         createdAt: displayDateTime(admin.createdAt)
       }));
     }
+    function pickField(obj, candidateKeys) {
+      if (!obj) return "";
+
+      for (const key of candidateKeys) {
+        if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") {
+          return obj[key];
+        }
+      }
+
+      const normalizeKey = key => String(key)
+        .replace(/[\s_\-｜|:：]/g, "")
+        .toLowerCase();
+
+      const normalizedMap = Object.keys(obj).reduce((map, key) => {
+        map[normalizeKey(key)] = obj[key];
+        return map;
+      }, {});
+
+      for (const key of candidateKeys) {
+        const normalized = normalizeKey(key);
+        if (normalizedMap[normalized] !== undefined && normalizedMap[normalized] !== null && normalizedMap[normalized] !== "") {
+          return normalizedMap[normalized];
+        }
+      }
+
+      return "";
+    }
+
 
     function displayDateTime(value) {
       if (!value) return "";
