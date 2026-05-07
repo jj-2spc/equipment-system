@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <title>器材借還系統 V3.4</title>
+  <title>器材借還系統 V4 Supabase</title>
 
   <style>
     * { box-sizing: border-box; }
@@ -427,7 +427,7 @@
 
     <section class="hero">
       <h1 id="pageTitle">📦 器材借還系統</h1>
-      <p id="pageSubtitle">V3.4 多管理員版：側邊選單儀表板。</p>
+      <p id="pageSubtitle">V4 Supabase 正式版：雲端資料庫與 Auth 登入。</p>
     </section>
 
     <div id="loadingBox" class="loading">資料處理中，請稍候...</div>
@@ -435,7 +435,7 @@
     <section id="loginCard" class="card admin-login-only">
       <h2>管理員登入</h2>
       <div class="login-note">請使用管理員帳號密碼登入。借還入口不需要登入。</div>
-      <input type="text" id="loginUsername" placeholder="帳號" autocomplete="username">
+      <input type="text" id="loginUsername" placeholder="Email" autocomplete="username">
       <input type="password" id="loginPassword" placeholder="密碼" autocomplete="current-password">
       <button onclick="loginAdmin()">登入</button>
     </section>
@@ -460,7 +460,7 @@
         <button class="admin-auth-only superadmin-only hidden" data-panel-btn="options" onclick="showAdminPanel('options')">🧩 資料選單管理</button>
         <button data-panel-btn="tools" onclick="showAdminPanel('tools')">⚙️ 管理工具</button>
       </nav>
-      <div class="sidebar-footer">目前版本：V3.4<br>Google Sheet 雲端同步</div>
+      <div class="sidebar-footer">目前版本：V4<br>Supabase 雲端同步</div>
     </aside>
 
     <div class="admin-only admin-auth-only admin-panel active hidden" data-panel="dashboard">
@@ -612,9 +612,20 @@
 
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbzWCXI7WV2qGY4XuXZs7xb2u1gu_QW4YwtWvlMWH4469X-NeRX_17HMXPtOLv5vrjyX/exec";
-    const SESSION_KEY = "equipment_admin_user_v3";
+    const SUPABASE_URL = "https://zqciuznfxuqobiocggpr.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_3H6arjoAueJ3S9xoW8sFfw_21NO-35_";
+    const SESSION_KEY = "equipment_admin_panel_v4";
+
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storageKey: SESSION_KEY
+      }
+    });
 
     const urlParams = new URLSearchParams(window.location.search);
     const pageMode = urlParams.get("mode") === "public" ? "public" : "admin";
@@ -622,6 +633,7 @@
     let items = [];
     let records = [];
     let admins = [];
+    let optionValues = [];
     let currentMode = "borrow";
     let editingItemId = null;
     let currentUser = null;
@@ -634,14 +646,9 @@
         document.getElementById("pageTitle").textContent = "📦 器材借還入口";
         document.getElementById("pageSubtitle").textContent = "請選擇借用或歸還器材。";
         document.getElementById("publicNote").style.display = "block";
-
-        document.querySelectorAll(".admin-only, .admin-login-only").forEach(el => {
-          el.classList.add("public-mode");
-        });
+        document.querySelectorAll(".admin-only, .admin-login-only").forEach(el => el.classList.add("public-mode"));
       } else {
-        document.querySelectorAll(".public-only").forEach(el => {
-          el.classList.add("admin-mode-hidden");
-        });
+        document.querySelectorAll(".public-only").forEach(el => el.classList.add("admin-mode-hidden"));
       }
     }
 
@@ -650,24 +657,9 @@
       document.querySelectorAll("button").forEach(btn => btn.disabled = isLoading);
     }
 
-    async function apiGetData() {
-      const res = await fetch(`${API_URL}?action=getData`);
-      return await res.json();
-    }
-
-    async function apiPost(action, payload = {}) {
-      const res = await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify({ action, ...payload })
-      });
-      return await res.json();
-    }
-
-    function authPayload() {
-      return {
-        currentUsername: currentUser?.username || "",
-        currentRole: currentUser?.role || ""
-      };
+    function dbError(error, fallback = "操作失敗") {
+      if (!error) return fallback;
+      return error.message || error.details || fallback;
     }
 
     function isSuperAdmin() {
@@ -677,32 +669,27 @@
     function canManageItem(item) {
       if (!currentUser) return false;
       if (isSuperAdmin()) return true;
-      return String(item.ownerUsername || "") === String(currentUser.username || "");
+      return String(item.ownerId || "") === String(currentUser.id || "");
     }
 
     async function loginAdmin() {
-      const username = document.getElementById("loginUsername").value.trim();
+      const email = document.getElementById("loginUsername").value.trim();
       const password = document.getElementById("loginPassword").value.trim();
-
-      if (!username || !password) return alert("請輸入帳號與密碼");
+      if (!email || !password) return alert("請輸入 Email 與密碼");
 
       try {
         setLoading(true);
-        const data = await apiPost("login", { username, password });
+        const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (authError) return alert("登入失敗：" + dbError(authError));
 
-        if (!data.ok) return alert(data.error || "登入失敗");
-
-        currentUser = data.user;
-        sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
-
-        const payload = data.data || {};
-        items = normalizeItems(payload.items || []);
-        records = normalizeRecords(payload.records || []);
+        const ok = await loadCurrentProfile(authData.user);
+        if (!ok) {
+          await supabaseClient.auth.signOut();
+          return;
+        }
 
         showAdminUI();
-        renderAll();
-
-        if (isSuperAdmin()) await loadAdmins();
+        await loadData();
       } catch (err) {
         alert("登入失敗：" + err.message);
       } finally {
@@ -710,13 +697,47 @@
       }
     }
 
+    async function loadCurrentProfile(authUser) {
+      if (!authUser) return false;
+
+      const { data, error } = await supabaseClient
+        .from("profiles")
+        .select("*")
+        .eq("id", authUser.id)
+        .single();
+
+      if (error || !data) {
+        alert("找不到這個帳號的 profile，請確認 profiles 已建立。\n" + dbError(error, ""));
+        return false;
+      }
+
+      const active = data.is_active !== false && data.active !== false;
+      if (!active) {
+        alert("這個管理員帳號已停用");
+        return false;
+      }
+
+      currentUser = normalizeProfile(data, authUser);
+      return true;
+    }
+
+    function normalizeProfile(profile, authUser = null) {
+      return {
+        id: profile.id || authUser?.id || "",
+        email: profile.email || authUser?.email || "",
+        username: profile.email || authUser?.email || profile.username || "",
+        displayName: profile.display_name || profile.displayName || profile.full_name || profile.email || authUser?.email || "管理員",
+        role: profile.role || "admin",
+        active: profile.is_active !== false && profile.active !== false,
+        createdAt: displayDateTime(profile.created_at || profile.createdAt)
+      };
+    }
+
     function setupLoginEnterKey() {
       if (pageMode === "public") return;
-
       ["loginUsername", "loginPassword"].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
-
         el.addEventListener("keydown", event => {
           if (event.key === "Enter") {
             event.preventDefault();
@@ -726,80 +747,58 @@
       });
     }
 
-
-    function restoreLoginSession() {
+    async function restoreLoginSession() {
       if (pageMode === "public") return false;
+      const { data } = await supabaseClient.auth.getSession();
+      const authUser = data?.session?.user;
+      if (!authUser) return false;
 
-      const raw = sessionStorage.getItem(SESSION_KEY);
-      if (!raw) return false;
-
-      try {
-        currentUser = JSON.parse(raw);
-        if (!currentUser?.username || !currentUser?.role) return false;
-        showAdminUI();
-        return true;
-      } catch {
-        sessionStorage.removeItem(SESSION_KEY);
-        return false;
-      }
+      const ok = await loadCurrentProfile(authUser);
+      if (!ok) return false;
+      showAdminUI();
+      return true;
     }
 
     function showAdminUI() {
       document.body.classList.add("admin-logged-in");
       document.getElementById("loginCard").classList.add("hidden");
       document.querySelectorAll(".admin-auth-only").forEach(el => el.classList.remove("hidden"));
-
-      document.getElementById("currentUserName").textContent = currentUser.displayName || currentUser.username;
+      document.getElementById("currentUserName").textContent = currentUser.displayName || currentUser.email;
       document.getElementById("currentUserRole").textContent = currentUser.role === "superadmin" ? "總管理人" : "一般管理員";
-
-      document.querySelectorAll(".superadmin-only").forEach(el => {
-        el.classList.toggle("hidden", !isSuperAdmin());
-      });
-
-      if (!isSuperAdmin() && (currentPanel === "admins" || currentPanel === "options")) {
-        currentPanel = "dashboard";
-      }
-
+      document.querySelectorAll(".superadmin-only").forEach(el => el.classList.toggle("hidden", !isSuperAdmin()));
+      if (!isSuperAdmin() && (currentPanel === "admins" || currentPanel === "options")) currentPanel = "dashboard";
       showAdminPanel(currentPanel || "dashboard");
     }
 
     function showAdminPanel(panel) {
       if (pageMode === "public") return;
-
-      if ((panel === "admins" || panel === "options") && !isSuperAdmin()) {
-        panel = "dashboard";
-      }
-
+      if ((panel === "admins" || panel === "options") && !isSuperAdmin()) panel = "dashboard";
       currentPanel = panel;
-
-      document.querySelectorAll(".admin-panel").forEach(el => {
-        el.classList.toggle("active", el.dataset.panel === panel);
-      });
-
-      document.querySelectorAll("[data-panel-btn]").forEach(btn => {
-        btn.classList.toggle("active", btn.dataset.panelBtn === panel);
-      });
+      document.querySelectorAll(".admin-panel").forEach(el => el.classList.toggle("active", el.dataset.panel === panel));
+      document.querySelectorAll("[data-panel-btn]").forEach(btn => btn.classList.toggle("active", btn.dataset.panelBtn === panel));
     }
 
-    function logoutAdmin() {
-      sessionStorage.removeItem(SESSION_KEY);
+    async function logoutAdmin() {
+      await supabaseClient.auth.signOut();
       location.reload();
     }
 
     async function loadData() {
       try {
         setLoading(true);
-        const data = await apiGetData();
+        const [{ data: itemRows, error: itemError }, { data: recordRows, error: recordError }, { data: optionRows, error: optionError }] = await Promise.all([
+          supabaseClient.from("items").select("*").order("created_at", { ascending: true }),
+          supabaseClient.from("records").select("*").order("created_at", { ascending: true }),
+          supabaseClient.from("option_values").select("*").order("type", { ascending: true }).order("sort_order", { ascending: true }).order("value", { ascending: true })
+        ]);
 
-        if (!data.ok) {
-          alert(data.error || "讀取資料失敗");
-          return;
-        }
+        if (itemError) return alert("讀取器材失敗：" + dbError(itemError));
+        if (recordError) return alert("讀取紀錄失敗：" + dbError(recordError));
+        if (optionError) optionValues = []; else optionValues = normalizeOptionValues(optionRows || []);
 
-        items = normalizeItems(data.items || []);
-        records = normalizeRecords(data.records || []);
+        items = normalizeItems(itemRows || []);
+        records = normalizeRecords(recordRows || []);
         renderAll();
-
         if (pageMode === "admin" && isSuperAdmin()) await loadAdmins();
       } catch (err) {
         alert("讀取資料失敗：" + err.message);
@@ -810,16 +809,10 @@
 
     async function loadAdmins() {
       if (!isSuperAdmin()) return;
-
-      try {
-        const data = await apiPost("getAdmins", authPayload());
-        if (!data.ok) return alert(data.error || "讀取管理員清單失敗");
-
-        admins = normalizeAdmins(data.admins || []);
-        renderAdminList();
-      } catch (err) {
-        alert("讀取管理員清單失敗：" + err.message);
-      }
+      const { data, error } = await supabaseClient.from("profiles").select("*").order("created_at", { ascending: true });
+      if (error) return alert("讀取管理員清單失敗：" + dbError(error));
+      admins = (data || []).map(row => normalizeProfile(row));
+      renderAdminList();
     }
 
     function normalizeItems(list) {
@@ -827,87 +820,58 @@
         id: String(item.id),
         name: item.name || "",
         category: item.category || "未分類",
-        custodianUnit: item.custodianUnit || "",
-        custodianName: item.custodianName || "",
-        ownerUsername: item.ownerUsername || "",
-        available: String(item.available).toUpperCase() === "TRUE"
+        custodianUnit: item.custodian_unit || item.custodianUnit || "",
+        custodianName: item.custodian_name || item.custodianName || "",
+        ownerId: item.owner_id || item.ownerId || "",
+        ownerUsername: item.owner_email || item.owner_username || item.ownerUsername || "",
+        available: item.available !== false,
+        createdAt: item.created_at || item.createdAt || ""
       }));
     }
 
     function normalizeRecords(list) {
-      return list.map(record => {
-        const borrowTime = pickField(record, ["borrowTime", "borrow time", "借出", "借出時間"]);
-        const returnTime = pickField(record, ["returnTime", "return time", "實際歸還", "歸還時間"]);
-        const expectedReturnDate = pickField(record, ["expectedReturnDate", "expected return date", "預計歸還"]);
-
-        return {
-          id: String(pickField(record, ["id"]) || ""),
-          itemId: String(pickField(record, ["itemId", "item id"]) || ""),
-          itemName: pickField(record, ["itemName", "item name", "器材名稱"]) || "",
-          itemCategory: pickField(record, ["itemCategory", "item category", "分類"]) || "未分類",
-          borrower: pickField(record, ["borrower", "借用人"]) || "",
-          borrowTime: displayDateTime(borrowTime),
-          expectedReturnDate: displayDate(expectedReturnDate),
-          purpose: pickField(record, ["purpose", "用途"]) || "",
-          returnTime: displayDateTime(returnTime),
-          status: pickField(record, ["status", "狀態"]) || ""
-        };
-      });
-    }
-
-    function normalizeAdmins(list) {
-      return list.map(admin => ({
-        id: String(admin.id),
-        username: admin.username || "",
-        displayName: admin.displayName || admin.username || "",
-        role: admin.role || "admin",
-        active: String(admin.active).toUpperCase() === "TRUE",
-        createdAt: displayDateTime(admin.createdAt)
+      return list.map(record => ({
+        id: String(record.id || ""),
+        itemId: String(record.item_id || record.itemId || ""),
+        itemName: record.item_name || record.itemName || "",
+        itemCategory: record.item_category || record.itemCategory || "未分類",
+        borrower: record.borrower || "",
+        borrowTime: displayDateTime(record.borrow_time || record.borrowTime || record.created_at),
+        expectedReturnDate: displayDate(record.expected_return_date || record.expectedReturnDate),
+        purpose: record.purpose || "",
+        returnTime: displayDateTime(record.return_time || record.returnTime),
+        status: record.status || ""
       }));
     }
-    function pickField(obj, candidateKeys) {
-      if (!obj) return "";
 
-      for (const key of candidateKeys) {
-        if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") {
-          return obj[key];
-        }
-      }
-
-      const normalizeKey = key => String(key)
-        .replace(/[\s_\-｜|:：]/g, "")
-        .toLowerCase();
-
-      const normalizedMap = Object.keys(obj).reduce((map, key) => {
-        map[normalizeKey(key)] = obj[key];
-        return map;
-      }, {});
-
-      for (const key of candidateKeys) {
-        const normalized = normalizeKey(key);
-        if (normalizedMap[normalized] !== undefined && normalizedMap[normalized] !== null && normalizedMap[normalized] !== "") {
-          return normalizedMap[normalized];
-        }
-      }
-
-      return "";
+    function normalizeOptionValues(list) {
+      return list
+        .filter(row => row.is_active !== false && row.active !== false)
+        .map(row => ({
+          id: String(row.id || ""),
+          type: row.type || "",
+          value: row.value || "",
+          sortOrder: row.sort_order || 0
+        }));
     }
 
+    function toDateOnly(value) {
+      if (!value) return null;
+      return String(value).slice(0, 10);
+    }
 
     function displayDateTime(value) {
       if (!value) return "";
       const text = String(value);
       if (/^\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}/.test(text)) return text;
-      if (/^\d{4}-\d{2}-\d{2}T/.test(text)) {
-        const d = new Date(text);
-        if (!isNaN(d.getTime())) {
-          const y = d.getFullYear();
-          const m = String(d.getMonth() + 1).padStart(2, "0");
-          const day = String(d.getDate()).padStart(2, "0");
-          const hh = String(d.getHours()).padStart(2, "0");
-          const mm = String(d.getMinutes()).padStart(2, "0");
-          return `${y}/${m}/${day} ${hh}:${mm}`;
-        }
+      const d = new Date(text);
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mm = String(d.getMinutes()).padStart(2, "0");
+        return `${y}/${m}/${day} ${hh}:${mm}`;
       }
       return text;
     }
@@ -916,34 +880,41 @@
       if (!value) return "";
       const text = String(value);
       if (/^\d{4}\/\d{2}\/\d{2}$/.test(text)) return text;
-      if (/^\d{4}-\d{2}-\d{2}T/.test(text)) {
-        const d = new Date(text);
-        if (!isNaN(d.getTime())) {
-          const y = d.getFullYear();
-          const m = String(d.getMonth() + 1).padStart(2, "0");
-          const day = String(d.getDate()).padStart(2, "0");
-          return `${y}/${m}/${day}`;
-        }
-      }
+      if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10).replaceAll("-", "/");
       return text;
     }
 
+    function optionList(type, fallbackValues) {
+      const values = optionValues.filter(v => v.type === type).map(v => v.value).filter(Boolean);
+      return [...new Set([...fallbackValues, ...values])];
+    }
+
     function getCategories() {
-      const baseCategories = ["未分類"];
-      const existingCategories = items.map(item => item.category || "未分類").filter(Boolean);
-      return [...new Set([...baseCategories, ...existingCategories])];
+      const existing = items.map(item => item.category || "未分類").filter(Boolean);
+      return optionList("category", ["未分類", ...existing]);
     }
 
     function getCustodianUnits() {
-      const baseUnits = ["未填"];
-      const existingUnits = items.map(item => item.custodianUnit || "").filter(Boolean);
-      return [...new Set([...baseUnits, ...existingUnits])];
+      const existing = items.map(item => item.custodianUnit || "").filter(Boolean);
+      return optionList("custodianUnit", ["未填", ...existing]);
     }
 
     function getCustodianNames() {
-      const baseNames = ["未填"];
-      const existingNames = items.map(item => item.custodianName || "").filter(Boolean);
-      return [...new Set([...baseNames, ...existingNames])];
+      const existing = items.map(item => item.custodianName || "").filter(Boolean);
+      return optionList("custodianName", ["未填", ...existing]);
+    }
+
+    async function ensureOptionValue(type, value) {
+      const clean = (value || "").trim();
+      if (!clean || clean === "未填") return;
+      const exists = optionValues.some(v => v.type === type && v.value === clean);
+      if (exists) return;
+      const { data, error } = await supabaseClient
+        .from("option_values")
+        .insert({ type, value: clean, is_active: true })
+        .select()
+        .single();
+      if (!error && data) optionValues.push(normalizeOptionValues([data])[0]);
     }
 
     function renderCategorySelects() {
@@ -956,16 +927,10 @@
 
     function renderAddCategorySelect() {
       if (pageMode === "public" || !document.getElementById("itemCategorySelect")) return;
-
       const select = document.getElementById("itemCategorySelect");
       const currentValue = select.value || "未分類";
       const categories = getCategories();
-
-      select.innerHTML = `
-        ${categories.map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("")}
-        <option value="${ADD_NEW_CATEGORY_VALUE}">＋新增分類</option>
-      `;
-
+      select.innerHTML = `${categories.map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("")}<option value="${ADD_NEW_CATEGORY_VALUE}">＋新增分類</option>`;
       select.value = categories.includes(currentValue) ? currentValue : "未分類";
       handleCategorySelectChange();
     }
@@ -974,14 +939,8 @@
       const select = document.getElementById("itemCategorySelect");
       const newInput = document.getElementById("itemCategoryNew");
       if (!select || !newInput) return;
-
-      if (select.value === ADD_NEW_CATEGORY_VALUE) {
-        newInput.style.display = "block";
-        newInput.focus();
-      } else {
-        newInput.style.display = "none";
-        newInput.value = "";
-      }
+      newInput.style.display = select.value === ADD_NEW_CATEGORY_VALUE ? "block" : "none";
+      if (select.value === ADD_NEW_CATEGORY_VALUE) newInput.focus(); else newInput.value = "";
     }
 
     function getAddCategoryValue() {
@@ -993,22 +952,14 @@
 
     function renderVisibleEditCategorySelects() {
       if (!editingItemId) return;
-
       const item = items.find(i => i.id === editingItemId);
       if (!item) return;
-
       const select = document.getElementById(`editCategorySelect-${editingItemId}`);
       const newInput = document.getElementById(`editCategoryNew-${editingItemId}`);
       if (!select || !newInput) return;
-
       const categories = getCategories();
       const currentCategory = item.category || "未分類";
-
-      select.innerHTML = `
-        ${categories.map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("")}
-        <option value="${ADD_NEW_CATEGORY_VALUE}">＋新增分類</option>
-      `;
-
+      select.innerHTML = `${categories.map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("")}<option value="${ADD_NEW_CATEGORY_VALUE}">＋新增分類</option>`;
       select.value = categories.includes(currentCategory) ? currentCategory : "未分類";
       newInput.style.display = "none";
       newInput.value = "";
@@ -1018,14 +969,8 @@
       const select = document.getElementById(`editCategorySelect-${itemId}`);
       const newInput = document.getElementById(`editCategoryNew-${itemId}`);
       if (!select || !newInput) return;
-
-      if (select.value === ADD_NEW_CATEGORY_VALUE) {
-        newInput.style.display = "block";
-        newInput.focus();
-      } else {
-        newInput.style.display = "none";
-        newInput.value = "";
-      }
+      newInput.style.display = select.value === ADD_NEW_CATEGORY_VALUE ? "block" : "none";
+      if (select.value === ADD_NEW_CATEGORY_VALUE) newInput.focus(); else newInput.value = "";
     }
 
     function getEditCategoryValue(itemId) {
@@ -1037,16 +982,10 @@
 
     function renderAddCustodianUnitSelect() {
       if (pageMode === "public" || !document.getElementById("custodianUnitSelect")) return;
-
       const select = document.getElementById("custodianUnitSelect");
       const currentValue = select.value || "未填";
       const units = getCustodianUnits();
-
-      select.innerHTML = `
-        ${units.map(unit => `<option value="${escapeHtml(unit)}">${escapeHtml(unit)}</option>`).join("")}
-        <option value="${ADD_NEW_CATEGORY_VALUE}">＋新增保管單位</option>
-      `;
-
+      select.innerHTML = `${units.map(unit => `<option value="${escapeHtml(unit)}">${escapeHtml(unit)}</option>`).join("")}<option value="${ADD_NEW_CATEGORY_VALUE}">＋新增保管單位</option>`;
       select.value = units.includes(currentValue) ? currentValue : "未填";
       handleCustodianUnitSelectChange();
     }
@@ -1055,14 +994,8 @@
       const select = document.getElementById("custodianUnitSelect");
       const newInput = document.getElementById("custodianUnitNew");
       if (!select || !newInput) return;
-
-      if (select.value === ADD_NEW_CATEGORY_VALUE) {
-        newInput.style.display = "block";
-        newInput.focus();
-      } else {
-        newInput.style.display = "none";
-        newInput.value = "";
-      }
+      newInput.style.display = select.value === ADD_NEW_CATEGORY_VALUE ? "block" : "none";
+      if (select.value === ADD_NEW_CATEGORY_VALUE) newInput.focus(); else newInput.value = "";
     }
 
     function getAddCustodianUnitValue() {
@@ -1074,16 +1007,10 @@
 
     function renderAddCustodianNameSelect() {
       if (pageMode === "public" || !document.getElementById("custodianNameSelect")) return;
-
       const select = document.getElementById("custodianNameSelect");
       const currentValue = select.value || "未填";
       const names = getCustodianNames();
-
-      select.innerHTML = `
-        ${names.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}
-        <option value="${ADD_NEW_CATEGORY_VALUE}">＋新增保管人</option>
-      `;
-
+      select.innerHTML = `${names.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}<option value="${ADD_NEW_CATEGORY_VALUE}">＋新增保管人</option>`;
       select.value = names.includes(currentValue) ? currentValue : "未填";
       handleCustodianNameSelectChange();
     }
@@ -1092,14 +1019,8 @@
       const select = document.getElementById("custodianNameSelect");
       const newInput = document.getElementById("custodianNameNew");
       if (!select || !newInput) return;
-
-      if (select.value === ADD_NEW_CATEGORY_VALUE) {
-        newInput.style.display = "block";
-        newInput.focus();
-      } else {
-        newInput.style.display = "none";
-        newInput.value = "";
-      }
+      newInput.style.display = select.value === ADD_NEW_CATEGORY_VALUE ? "block" : "none";
+      if (select.value === ADD_NEW_CATEGORY_VALUE) newInput.focus(); else newInput.value = "";
     }
 
     function getAddCustodianNameValue() {
@@ -1111,37 +1032,17 @@
 
     function renderVisibleEditCustodianSelects() {
       if (!editingItemId) return;
-
       const item = items.find(i => i.id === editingItemId);
       if (!item) return;
-
-      renderOneEditSelect({
-        itemId: editingItemId,
-        selectId: `editCustodianUnitSelect-${editingItemId}`,
-        inputId: `editCustodianUnitNew-${editingItemId}`,
-        values: getCustodianUnits(),
-        currentValue: item.custodianUnit || "未填"
-      });
-
-      renderOneEditSelect({
-        itemId: editingItemId,
-        selectId: `editCustodianNameSelect-${editingItemId}`,
-        inputId: `editCustodianNameNew-${editingItemId}`,
-        values: getCustodianNames(),
-        currentValue: item.custodianName || "未填"
-      });
+      renderOneEditSelect({ selectId: `editCustodianUnitSelect-${editingItemId}`, inputId: `editCustodianUnitNew-${editingItemId}`, values: getCustodianUnits(), currentValue: item.custodianUnit || "未填" });
+      renderOneEditSelect({ selectId: `editCustodianNameSelect-${editingItemId}`, inputId: `editCustodianNameNew-${editingItemId}`, values: getCustodianNames(), currentValue: item.custodianName || "未填" });
     }
 
     function renderOneEditSelect({ selectId, inputId, values, currentValue }) {
       const select = document.getElementById(selectId);
       const newInput = document.getElementById(inputId);
       if (!select || !newInput) return;
-
-      select.innerHTML = `
-        ${values.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}
-        <option value="${ADD_NEW_CATEGORY_VALUE}">＋新增</option>
-      `;
-
+      select.innerHTML = `${values.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}<option value="${ADD_NEW_CATEGORY_VALUE}">＋新增</option>`;
       select.value = values.includes(currentValue) ? currentValue : "未填";
       newInput.style.display = "none";
       newInput.value = "";
@@ -1153,14 +1054,8 @@
       const select = document.getElementById(selectId);
       const newInput = document.getElementById(inputId);
       if (!select || !newInput) return;
-
-      if (select.value === ADD_NEW_CATEGORY_VALUE) {
-        newInput.style.display = "block";
-        newInput.focus();
-      } else {
-        newInput.style.display = "none";
-        newInput.value = "";
-      }
+      newInput.style.display = select.value === ADD_NEW_CATEGORY_VALUE ? "block" : "none";
+      if (select.value === ADD_NEW_CATEGORY_VALUE) newInput.focus(); else newInput.value = "";
     }
 
     function getEditCustodianValue(itemId, type) {
@@ -1168,7 +1063,6 @@
       const inputId = type === "unit" ? `editCustodianUnitNew-${itemId}` : `editCustodianNameNew-${itemId}`;
       const select = document.getElementById(selectId);
       const newInput = document.getElementById(inputId);
-
       if (select.value === ADD_NEW_CATEGORY_VALUE) return newInput.value.trim();
       return select.value === "未填" ? "" : (select.value || "");
     }
@@ -1198,26 +1092,31 @@
       const category = getAddCategoryValue();
       const custodianUnit = getAddCustodianUnitValue();
       const custodianName = getAddCustodianNameValue();
-
       if (!name) return alert("請輸入器材名稱");
 
       try {
         setLoading(true);
-        const data = await apiPost("addItem", { ...authPayload(), name, category, custodianUnit, custodianName });
-        if (!data.ok) return alert(data.error || "新增失敗");
+        await ensureOptionValue("category", category);
+        await ensureOptionValue("custodianUnit", custodianUnit);
+        await ensureOptionValue("custodianName", custodianName);
 
-        items = normalizeItems(data.items || []);
-        records = normalizeRecords(data.records || []);
+        const { error } = await supabaseClient.from("items").insert({
+          name,
+          category,
+          custodian_unit: custodianUnit,
+          custodian_name: custodianName,
+          available: true,
+          owner_id: currentUser.id,
+          owner_email: currentUser.email
+        });
+        if (error) return alert("新增失敗：" + dbError(error));
 
         nameInput.value = "";
-        document.getElementById("itemCategoryNew").value = "";
-        document.getElementById("itemCategoryNew").style.display = "none";
-        document.getElementById("custodianUnitNew").value = "";
-        document.getElementById("custodianUnitNew").style.display = "none";
-        document.getElementById("custodianNameNew").value = "";
-        document.getElementById("custodianNameNew").style.display = "none";
-
-        renderAll();
+        ["itemCategoryNew", "custodianUnitNew", "custodianNameNew"].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) { el.value = ""; el.style.display = "none"; }
+        });
+        await loadData();
       } catch (err) {
         alert("新增失敗：" + err.message);
       } finally {
@@ -1230,29 +1129,38 @@
       const select = document.getElementById("borrowItemSelect");
       const expectedInput = document.getElementById("expectedReturnDate");
       const purposeInput = document.getElementById("borrowPurpose");
-
       const borrower = borrowerInput.value.trim();
       const itemId = select.value;
       const expectedReturnDate = expectedInput.value;
       const purpose = purposeInput.value.trim();
-
       if (!borrower) return alert("請輸入借用人姓名");
       if (!itemId) return alert("請選擇器材");
 
+      const item = items.find(i => i.id === String(itemId));
+      if (!item || !item.available) return alert("這個器材目前不可借用");
+
       try {
         setLoading(true);
-        const data = await apiPost("borrowItem", { itemId, borrower, expectedReturnDate, purpose });
-        if (!data.ok) return alert(data.error || "借用失敗");
+        const { error: recordError } = await supabaseClient.from("records").insert({
+          item_id: item.id,
+          item_name: item.name,
+          item_category: item.category,
+          borrower,
+          borrow_time: new Date().toISOString(),
+          expected_return_date: toDateOnly(expectedReturnDate),
+          purpose,
+          status: "borrowed"
+        });
+        if (recordError) return alert("借用失敗：" + dbError(recordError));
 
-        items = normalizeItems(data.items || []);
-        records = normalizeRecords(data.records || []);
+        const { error: itemError } = await supabaseClient.from("items").update({ available: false }).eq("id", item.id);
+        if (itemError) return alert("更新器材狀態失敗：" + dbError(itemError));
 
         borrowerInput.value = "";
         select.value = "";
         expectedInput.value = "";
         purposeInput.value = "";
-
-        renderAll();
+        await loadData();
         alert("借用登記完成");
       } catch (err) {
         alert("借用失敗：" + err.message);
@@ -1270,18 +1178,20 @@
     async function returnItem(recordId) {
       const record = records.find(r => r.id === String(recordId));
       if (!record) return alert("找不到借用紀錄");
-
-      const ok = confirm(`確認歸還「${record.itemName}」嗎？`);
-      if (!ok) return;
+      if (!confirm(`確認歸還「${record.itemName}」嗎？`)) return;
 
       try {
         setLoading(true);
-        const data = await apiPost("returnItem", { recordId });
-        if (!data.ok) return alert(data.error || "歸還失敗");
+        const { error: recordError } = await supabaseClient.from("records").update({
+          status: "returned",
+          return_time: new Date().toISOString()
+        }).eq("id", record.id);
+        if (recordError) return alert("歸還失敗：" + dbError(recordError));
 
-        items = normalizeItems(data.items || []);
-        records = normalizeRecords(data.records || []);
-        renderAll();
+        const { error: itemError } = await supabaseClient.from("items").update({ available: true }).eq("id", record.itemId);
+        if (itemError) return alert("更新器材狀態失敗：" + dbError(itemError));
+
+        await loadData();
         alert("歸還完成");
       } catch (err) {
         alert("歸還失敗：" + err.message);
@@ -1308,20 +1218,24 @@
       const category = getEditCategoryValue(itemId);
       const custodianUnit = getEditCustodianValue(itemId, "unit");
       const custodianName = getEditCustodianValue(itemId, "name");
-
       if (!name) return alert("器材名稱不能空白");
 
       try {
         setLoading(true);
-        const data = await apiPost("updateItem", {
-          ...authPayload(), id: String(itemId), name, category, custodianUnit, custodianName
-        });
-        if (!data.ok) return alert(data.error || "更新失敗");
+        await ensureOptionValue("category", category);
+        await ensureOptionValue("custodianUnit", custodianUnit);
+        await ensureOptionValue("custodianName", custodianName);
 
-        items = normalizeItems(data.items || []);
-        records = normalizeRecords(data.records || []);
+        const { error } = await supabaseClient.from("items").update({
+          name,
+          category,
+          custodian_unit: custodianUnit,
+          custodian_name: custodianName
+        }).eq("id", String(itemId));
+        if (error) return alert("更新失敗：" + dbError(error));
+
         editingItemId = null;
-        renderAll();
+        await loadData();
       } catch (err) {
         alert("更新失敗：" + err.message);
       } finally {
@@ -1332,18 +1246,13 @@
     async function deleteItem(itemId) {
       const item = items.find(i => i.id === String(itemId));
       if (!item) return;
-
-      const ok = confirm(`確定要刪除「${item.name}」嗎？`);
-      if (!ok) return;
+      if (!confirm(`確定要刪除「${item.name}」嗎？`)) return;
 
       try {
         setLoading(true);
-        const data = await apiPost("deleteItem", { ...authPayload(), id: String(itemId) });
-        if (!data.ok) return alert(data.error || "刪除失敗");
-
-        items = normalizeItems(data.items || []);
-        records = normalizeRecords(data.records || []);
-        renderAll();
+        const { error } = await supabaseClient.from("items").delete().eq("id", String(itemId));
+        if (error) return alert("刪除失敗：" + dbError(error));
+        await loadData();
       } catch (err) {
         alert("刪除失敗：" + err.message);
       } finally {
@@ -1352,42 +1261,21 @@
     }
 
     async function addAdminUser() {
-      const username = document.getElementById("newAdminUsername").value.trim();
-      const password = document.getElementById("newAdminPassword").value.trim();
-      const displayName = document.getElementById("newAdminDisplayName").value.trim();
-      const role = document.getElementById("newAdminRole").value;
-
-      if (!username || !password) return alert("請輸入新管理員帳號與密碼");
-
-      try {
-        setLoading(true);
-        const data = await apiPost("addAdmin", { ...authPayload(), username, password, displayName, role });
-        if (!data.ok) return alert(data.error || "新增管理員失敗");
-
-        admins = normalizeAdmins(data.admins || []);
-        document.getElementById("newAdminUsername").value = "";
-        document.getElementById("newAdminPassword").value = "";
-        document.getElementById("newAdminDisplayName").value = "";
-        document.getElementById("newAdminRole").value = "admin";
-        renderAdminList();
-      } catch (err) {
-        alert("新增管理員失敗：" + err.message);
-      } finally {
-        setLoading(false);
-      }
+      alert("V4 純前端版不能安全地直接建立 Supabase Auth 使用者。\n請先到 Supabase Authentication 建立使用者，再把該使用者加入 profiles。\n如果你要保留一鍵新增管理員，我們下一步要加 Supabase Edge Function。");
     }
 
-    async function toggleAdminUser(username) {
-      const ok = confirm(`確定要切換「${username}」的啟用狀態嗎？`);
-      if (!ok) return;
+    async function toggleAdminUser(profileId) {
+      if (!isSuperAdmin()) return alert("只有總管理人可以操作");
+      const admin = admins.find(a => a.id === String(profileId));
+      if (!admin) return;
+      if (admin.id === currentUser.id) return alert("不能停用目前登入帳號");
+      if (!confirm(`確定要切換「${admin.displayName}」的啟用狀態嗎？`)) return;
 
       try {
         setLoading(true);
-        const data = await apiPost("toggleAdmin", { ...authPayload(), username });
-        if (!data.ok) return alert(data.error || "更新管理員狀態失敗");
-
-        admins = normalizeAdmins(data.admins || []);
-        renderAdminList();
+        const { error } = await supabaseClient.from("profiles").update({ is_active: !admin.active }).eq("id", admin.id);
+        if (error) return alert("更新管理員狀態失敗：" + dbError(error));
+        await loadAdmins();
       } catch (err) {
         alert("更新管理員狀態失敗：" + err.message);
       } finally {
@@ -1397,7 +1285,6 @@
 
     function renderOptionManager() {
       if (pageMode === "public" || !isSuperAdmin()) return;
-
       renderOptionManagerSelect("manageCategorySelect", getCategories().filter(v => v !== "未分類"));
       renderOptionManagerSelect("manageCustodianUnitSelect", getCustodianUnits().filter(v => v !== "未填"));
       renderOptionManagerSelect("manageCustodianNameSelect", getCustodianNames().filter(v => v !== "未填"));
@@ -1406,106 +1293,40 @@
     function renderOptionManagerSelect(selectId, values) {
       const select = document.getElementById(selectId);
       if (!select) return;
-
       if (!values.length) {
         select.innerHTML = `<option value="">目前沒有可修改的資料</option>`;
         return;
       }
-
       const currentValue = select.value;
-
-      select.innerHTML = `
-        <option value="">請選擇要修改的項目</option>
-        ${values.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}
-      `;
-
-      if (values.includes(currentValue)) {
-        select.value = currentValue;
-      }
+      select.innerHTML = `<option value="">請選擇要修改的項目</option>${values.map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}`;
+      if (values.includes(currentValue)) select.value = currentValue;
     }
 
     async function renameOptionValue(type) {
       if (!isSuperAdmin()) return alert("只有總管理人可以修改選單資料");
-
       const config = {
-        category: {
-          label: "分類",
-          selectId: "manageCategorySelect",
-          inputId: "manageCategoryNewName",
-          field: "category",
-          emptyValue: "未分類"
-        },
-        custodianUnit: {
-          label: "保管單位",
-          selectId: "manageCustodianUnitSelect",
-          inputId: "manageCustodianUnitNewName",
-          field: "custodianUnit",
-          emptyValue: ""
-        },
-        custodianName: {
-          label: "保管人",
-          selectId: "manageCustodianNameSelect",
-          inputId: "manageCustodianNameNewName",
-          field: "custodianName",
-          emptyValue: ""
-        }
+        category: { label: "分類", selectId: "manageCategorySelect", inputId: "manageCategoryNewName", itemField: "category", dbField: "category" },
+        custodianUnit: { label: "保管單位", selectId: "manageCustodianUnitSelect", inputId: "manageCustodianUnitNewName", itemField: "custodianUnit", dbField: "custodian_unit" },
+        custodianName: { label: "保管人", selectId: "manageCustodianNameSelect", inputId: "manageCustodianNameNewName", itemField: "custodianName", dbField: "custodian_name" }
       }[type];
-
       if (!config) return;
 
-      const select = document.getElementById(config.selectId);
-      const input = document.getElementById(config.inputId);
-
-      const oldValue = (select.value || "").trim();
-      const newValue = (input.value || "").trim();
-
+      const oldValue = (document.getElementById(config.selectId).value || "").trim();
+      const newValue = (document.getElementById(config.inputId).value || "").trim();
       if (!oldValue) return alert(`請先選擇要修改的${config.label}`);
       if (!newValue) return alert(`請輸入新的${config.label}名稱`);
       if (oldValue === newValue) return alert("新舊名稱相同，不需要修改");
 
-      const duplicate = items.some(item => String(item[config.field] || "").trim() === newValue);
-      if (duplicate) {
-        const okDuplicate = confirm(`「${newValue}」已經存在，仍要把「${oldValue}」合併成「${newValue}」嗎？`);
-        if (!okDuplicate) return;
-      }
-
-      const targetItems = items.filter(item => String(item[config.field] || "").trim() === oldValue);
-
-      if (!targetItems.length) {
-        alert(`找不到使用「${oldValue}」的器材`);
-        return;
-      }
-
-      const ok = confirm(`確定要把 ${targetItems.length} 筆器材的${config.label}「${oldValue}」改成「${newValue}」嗎？`);
-      if (!ok) return;
+      const targetItems = items.filter(item => String(item[config.itemField] || "").trim() === oldValue);
+      if (!confirm(`確定要把 ${targetItems.length} 筆器材的${config.label}「${oldValue}」改成「${newValue}」嗎？`)) return;
 
       try {
         setLoading(true);
-
-        let latestData = null;
-
-        for (const item of targetItems) {
-          const payload = {
-            ...authPayload(),
-            id: String(item.id),
-            name: item.name,
-            category: type === "category" ? newValue : item.category,
-            custodianUnit: type === "custodianUnit" ? newValue : item.custodianUnit,
-            custodianName: type === "custodianName" ? newValue : item.custodianName
-          };
-
-          latestData = await apiPost("updateItem", payload);
-
-          if (!latestData.ok) {
-            throw new Error(latestData.error || `修改${config.label}失敗`);
-          }
-        }
-
-        items = normalizeItems(latestData.items || []);
-        records = normalizeRecords(latestData.records || []);
-
-        input.value = "";
-        renderAll();
+        await ensureOptionValue(type, newValue);
+        const { error } = await supabaseClient.from("items").update({ [config.dbField]: newValue }).eq(config.dbField, oldValue);
+        if (error) return alert("修改失敗：" + dbError(error));
+        document.getElementById(config.inputId).value = "";
+        await loadData();
         alert(`${config.label}已修改完成`);
       } catch (err) {
         alert("修改失敗：" + err.message);
@@ -1523,46 +1344,30 @@
 
     function renderBorrowSelect() {
       const select = document.getElementById("borrowItemSelect");
+      if (!select) return;
       const availableItems = items.filter(item => item.available);
-
       if (availableItems.length === 0) {
         select.innerHTML = `<option value="">目前沒有可借用器材</option>`;
         return;
       }
-
-      select.innerHTML = `
-        <option value="">請選擇要借的器材</option>
-        ${availableItems.map(item => `
-          <option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}｜${escapeHtml(item.category)}</option>
-        `).join("")}
-      `;
+      select.innerHTML = `<option value="">請選擇要借的器材</option>${availableItems.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}｜${escapeHtml(item.category)}</option>`).join("")}`;
     }
 
     function renderReturnSelect() {
       const select = document.getElementById("returnRecordSelect");
+      if (!select) return;
       const borrowedRecords = records.filter(r => r.status === "borrowed");
-
       if (borrowedRecords.length === 0) {
         select.innerHTML = `<option value="">目前沒有借用中的器材</option>`;
         return;
       }
-
-      select.innerHTML = `
-        <option value="">請選擇要歸還的器材</option>
-        ${borrowedRecords.map(record => `
-          <option value="${escapeHtml(record.id)}">
-            ${escapeHtml(record.itemName)}｜借用人：${escapeHtml(record.borrower)}｜${record.borrowTime}
-          </option>
-        `).join("")}
-      `;
+      select.innerHTML = `<option value="">請選擇要歸還的器材</option>${borrowedRecords.map(record => `<option value="${escapeHtml(record.id)}">${escapeHtml(record.itemName)}｜借用人：${escapeHtml(record.borrower)}｜${record.borrowTime}</option>`).join("")}`;
     }
 
     function renderItems() {
       if (pageMode === "public") return;
-
       const list = document.getElementById("itemList");
       const keyword = document.getElementById("searchInput").value.trim().toLowerCase();
-
       let filtered = items;
       if (keyword) {
         filtered = items.filter(item =>
@@ -1572,7 +1377,6 @@
           item.custodianName.toLowerCase().includes(keyword)
         );
       }
-
       if (filtered.length === 0) {
         list.innerHTML = `<div class="empty">找不到符合的器材</div>`;
         return;
@@ -1581,158 +1385,100 @@
       list.innerHTML = filtered.map(item => {
         if (editingItemId === item.id) {
           return `
-            <div class="item">
-              <div class="edit-box">
-                <strong>編輯器材</strong>
-
-                <input id="editName-${escapeHtml(item.id)}" type="text" value="${escapeHtml(item.name)}">
-
-                <select id="editCategorySelect-${escapeHtml(item.id)}" onchange="handleEditCategorySelectChange('${escapeJs(item.id)}')"></select>
-                <input id="editCategoryNew-${escapeHtml(item.id)}" type="text" placeholder="輸入新分類，例如：資訊設備" style="display:none;">
-
-                <div class="grid-2">
-                  <div>
-                    <select id="editCustodianUnitSelect-${escapeHtml(item.id)}" onchange="handleEditCustodianSelectChange('${escapeJs(item.id)}', 'unit')"></select>
-                    <input id="editCustodianUnitNew-${escapeHtml(item.id)}" type="text" placeholder="輸入新保管單位，例如：資訊室" style="display:none;">
-                  </div>
-
-                  <div>
-                    <select id="editCustodianNameSelect-${escapeHtml(item.id)}" onchange="handleEditCustodianSelectChange('${escapeJs(item.id)}', 'name')"></select>
-                    <input id="editCustodianNameNew-${escapeHtml(item.id)}" type="text" placeholder="輸入新保管人，例如：王小明" style="display:none;">
-                  </div>
-                </div>
-
-                <div class="grid-2">
-                  <button class="btn-green" onclick="saveEditItem('${escapeJs(item.id)}')">儲存</button>
-                  <button class="btn-gray" onclick="cancelEditItem()">取消</button>
-                </div>
-              </div>
-            </div>
-          `;
+            <div class="item"><div class="edit-box"><strong>編輯器材</strong>
+              <input id="editName-${escapeHtml(item.id)}" type="text" value="${escapeHtml(item.name)}">
+              <select id="editCategorySelect-${escapeHtml(item.id)}" onchange="handleEditCategorySelectChange('${escapeJs(item.id)}')"></select>
+              <input id="editCategoryNew-${escapeHtml(item.id)}" type="text" placeholder="輸入新分類，例如：資訊設備" style="display:none;">
+              <div class="grid-2"><div>
+                <select id="editCustodianUnitSelect-${escapeHtml(item.id)}" onchange="handleEditCustodianSelectChange('${escapeJs(item.id)}', 'unit')"></select>
+                <input id="editCustodianUnitNew-${escapeHtml(item.id)}" type="text" placeholder="輸入新保管單位，例如：資訊室" style="display:none;">
+              </div><div>
+                <select id="editCustodianNameSelect-${escapeHtml(item.id)}" onchange="handleEditCustodianSelectChange('${escapeJs(item.id)}', 'name')"></select>
+                <input id="editCustodianNameNew-${escapeHtml(item.id)}" type="text" placeholder="輸入新保管人，例如：王小明" style="display:none;">
+              </div></div>
+              <div class="grid-2"><button class="btn-green" onclick="saveEditItem('${escapeJs(item.id)}')">儲存</button><button class="btn-gray" onclick="cancelEditItem()">取消</button></div>
+            </div></div>`;
         }
 
         const canEdit = canManageItem(item);
-
         return `
           <div class="item">
-            <div class="title-row">
-              <strong>${escapeHtml(item.name)}</strong>
-              <span class="badge ${item.available ? "available" : "borrowed"}">${item.available ? "可借用" : "借用中"}</span>
-            </div>
-
+            <div class="title-row"><strong>${escapeHtml(item.name)}</strong><span class="badge ${item.available ? "available" : "borrowed"}">${item.available ? "可借用" : "借用中"}</span></div>
             <div class="small">分類：${escapeHtml(item.category)}</div>
             <div class="small">保管單位：${escapeHtml(item.custodianUnit || "未填")}</div>
             <div class="small">保管人：${escapeHtml(item.custodianName || "未填")}</div>
             <div class="small">建立者：${escapeHtml(item.ownerUsername || "未記錄")}</div>
-
             <div class="grid-2">
               ${canEdit ? `<button class="btn-orange" onclick="startEditItem('${escapeJs(item.id)}')">編輯</button>` : `<button class="btn-gray" disabled>不可編輯</button>`}
               ${item.available && canEdit ? `<button class="btn-red" onclick="deleteItem('${escapeJs(item.id)}')">刪除</button>` : `<button class="btn-gray" disabled>${item.available ? "不可刪除" : "借用中不可刪除"}</button>`}
             </div>
-          </div>
-        `;
+          </div>`;
       }).join("");
     }
 
     function renderBorrowedList() {
       if (pageMode === "public") return;
-
       const list = document.getElementById("borrowedList");
       const borrowedRecords = records.filter(r => r.status === "borrowed");
-
       if (borrowedRecords.length === 0) {
         list.innerHTML = `<div class="empty">目前沒有器材借用中</div>`;
         return;
       }
-
       list.innerHTML = borrowedRecords.map(record => {
         const overdue = isOverdue(record.expectedReturnDate);
-        return `
-          <div class="record">
-            <div class="title-row">
-              <strong>${escapeHtml(record.itemName)}</strong>
-              <span class="badge ${overdue ? "overdue" : "borrowed"}">${overdue ? "逾期" : "借用中"}</span>
-            </div>
-
-            <div>借用人：${escapeHtml(record.borrower)}</div>
-            <div>分類：${escapeHtml(record.itemCategory)}</div>
-            <div>借出時間：${record.borrowTime || "未記錄"}</div>
-            <div>預計歸還：${record.expectedReturnDate || "未填"}</div>
-            <div>用途：${escapeHtml(record.purpose || "未填")}</div>
-
-            <button class="btn-blue" onclick="returnItem('${escapeJs(record.id)}')">歸還</button>
-          </div>
-        `;
+        return `<div class="record">
+          <div class="title-row"><strong>${escapeHtml(record.itemName)}</strong><span class="badge ${overdue ? "overdue" : "borrowed"}">${overdue ? "逾期" : "借用中"}</span></div>
+          <div>借用人：${escapeHtml(record.borrower)}</div>
+          <div>分類：${escapeHtml(record.itemCategory)}</div>
+          <div>借出時間：${record.borrowTime || "未記錄"}</div>
+          <div>預計歸還：${record.expectedReturnDate || "未填"}</div>
+          <div>用途：${escapeHtml(record.purpose || "未填")}</div>
+          <button class="btn-blue" onclick="returnItem('${escapeJs(record.id)}')">歸還</button>
+        </div>`;
       }).join("");
     }
 
     function renderHistory() {
       if (pageMode === "public") return;
-
       const list = document.getElementById("historyList");
       if (records.length === 0) {
         list.innerHTML = `<div class="empty">尚無借還紀錄</div>`;
         return;
       }
-
       const recentRecords = [...records].reverse();
-      list.innerHTML = recentRecords.map(record => `
-        <div class="record">
-          <div class="title-row">
-            <strong>${escapeHtml(record.itemName)}</strong>
-            <span class="badge ${record.status === "borrowed" ? "borrowed" : "available"}">${record.status === "borrowed" ? "借用中" : "已歸還"}</span>
-          </div>
-
-          <div>借用人：${escapeHtml(record.borrower)}</div>
-          <div>分類：${escapeHtml(record.itemCategory)}</div>
-          <div>借出：${record.borrowTime || "未記錄"}</div>
-          <div>實際歸還：${record.returnTime || "尚未歸還"}</div>
-          <div>用途：${escapeHtml(record.purpose || "未填")}</div>
-        </div>
-      `).join("");
+      list.innerHTML = recentRecords.map(record => `<div class="record">
+        <div class="title-row"><strong>${escapeHtml(record.itemName)}</strong><span class="badge ${record.status === "borrowed" ? "borrowed" : "available"}">${record.status === "borrowed" ? "借用中" : "已歸還"}</span></div>
+        <div>借用人：${escapeHtml(record.borrower)}</div>
+        <div>分類：${escapeHtml(record.itemCategory)}</div>
+        <div>借出：${record.borrowTime || "未記錄"}</div>
+        <div>實際歸還：${record.returnTime || "尚未歸還"}</div>
+        <div>用途：${escapeHtml(record.purpose || "未填")}</div>
+      </div>`).join("");
     }
 
     function renderAdminList() {
       if (!isSuperAdmin()) return;
       const list = document.getElementById("adminList");
-
       if (admins.length === 0) {
         list.innerHTML = `<div class="empty">尚無管理員資料</div>`;
         return;
       }
-
-      list.innerHTML = admins.map(admin => `
-        <div class="admin-row">
-          <div class="title-row">
-            <strong>${escapeHtml(admin.displayName)}（${escapeHtml(admin.username)}）</strong>
-            <span class="badge ${admin.active ? "available" : "inactive-badge"}">${admin.active ? "啟用中" : "已停用"}</span>
-          </div>
-          <div class="small">權限：<span class="badge ${admin.role === "superadmin" ? "role-super" : "role-admin"}">${admin.role === "superadmin" ? "總管理人" : "一般管理員"}</span></div>
-          <div class="small">建立時間：${admin.createdAt || "未記錄"}</div>
-          ${admin.username === currentUser.username ? `
-            <button class="btn-gray" disabled>目前登入帳號</button>
-          ` : `
-            <button class="${admin.active ? "btn-red" : "btn-green"}" onclick="toggleAdminUser('${escapeJs(admin.username)}')">${admin.active ? "停用" : "啟用"}</button>
-          `}
-        </div>
-      `).join("");
+      list.innerHTML = admins.map(admin => `<div class="admin-row">
+        <div class="title-row"><strong>${escapeHtml(admin.displayName)}（${escapeHtml(admin.email || admin.username)}）</strong><span class="badge ${admin.active ? "available" : "inactive-badge"}">${admin.active ? "啟用中" : "已停用"}</span></div>
+        <div class="small">權限：<span class="badge ${admin.role === "superadmin" ? "role-super" : "role-admin"}">${admin.role === "superadmin" ? "總管理人" : "一般管理員"}</span></div>
+        <div class="small">建立時間：${admin.createdAt || "未記錄"}</div>
+        ${admin.id === currentUser.id ? `<button class="btn-gray" disabled>目前登入帳號</button>` : `<button class="${admin.active ? "btn-red" : "btn-green"}" onclick="toggleAdminUser('${escapeJs(admin.id)}')">${admin.active ? "停用" : "啟用"}</button>`}
+      </div>`).join("");
     }
 
     function copyPublicUrl() {
       const baseUrl = window.location.href.split("?")[0];
       const publicUrl = `${baseUrl}?mode=public`;
-      navigator.clipboard.writeText(publicUrl)
-        .then(() => alert("已複製借還入口網址"))
-        .catch(() => prompt("請手動複製這個網址：", publicUrl));
+      navigator.clipboard.writeText(publicUrl).then(() => alert("已複製借還入口網址")).catch(() => prompt("請手動複製這個網址：", publicUrl));
     }
 
     function escapeHtml(text) {
-      return String(text)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
+      return String(text).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
     }
 
     function escapeJs(text) {
@@ -1763,9 +1509,7 @@
     if (pageMode === "public") {
       loadData();
     } else {
-      if (restoreLoginSession()) {
-        loadData();
-      }
+      restoreLoginSession().then(ok => { if (ok) loadData(); });
     }
   </script>
 </body>
