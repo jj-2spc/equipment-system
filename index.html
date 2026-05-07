@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,7 +8,9 @@
   <title>器材借還系統 V4 Supabase</title>
 
   <style>
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Noto Sans TC", sans-serif;
@@ -57,10 +60,11 @@
       margin-bottom: 16px;
     }
 
-    .stat, .card {
+    .stat,
+    .card {
       background: white;
       border-radius: 18px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.07);
     }
 
     .stat {
@@ -90,7 +94,9 @@
       font-size: 20px;
     }
 
-    input, select, button {
+    input,
+    select,
+    button {
       width: 100%;
       max-width: 100%;
       padding: 12px;
@@ -123,11 +129,25 @@
       cursor: not-allowed;
     }
 
-    .btn-blue { background: #2563eb; }
-    .btn-green { background: #16a34a; }
-    .btn-red { background: #b91c1c; }
-    .btn-gray { background: #6b7280; }
-    .btn-orange { background: #ea580c; }
+    .btn-blue {
+      background: #2563eb;
+    }
+
+    .btn-green {
+      background: #16a34a;
+    }
+
+    .btn-red {
+      background: #b91c1c;
+    }
+
+    .btn-gray {
+      background: #6b7280;
+    }
+
+    .btn-orange {
+      background: #ea580c;
+    }
 
     .mode-buttons {
       display: grid;
@@ -136,7 +156,9 @@
       margin-bottom: 12px;
     }
 
-    .mode-buttons button { margin-top: 0; }
+    .mode-buttons button {
+      margin-top: 0;
+    }
 
     .mode-buttons button.inactive {
       background: #e5e7eb;
@@ -157,13 +179,17 @@
       align-items: start;
     }
 
-    .item, .record, .admin-row {
+    .item,
+    .record,
+    .admin-row {
       padding: 14px 0;
       border-bottom: 1px solid #e5e7eb;
       line-height: 1.7;
     }
 
-    .item:last-child, .record:last-child, .admin-row:last-child {
+    .item:last-child,
+    .record:last-child,
+    .admin-row:last-child {
       border-bottom: none;
     }
 
@@ -184,12 +210,35 @@
       white-space: nowrap;
     }
 
-    .available { background: #dcfce7; color: #166534; }
-    .borrowed { background: #fee2e2; color: #991b1b; }
-    .overdue { background: #fef3c7; color: #92400e; }
-    .role-super { background: #ede9fe; color: #5b21b6; }
-    .role-admin { background: #dbeafe; color: #1d4ed8; }
-    .inactive-badge { background: #e5e7eb; color: #4b5563; }
+    .available {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .borrowed {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .overdue {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .role-super {
+      background: #ede9fe;
+      color: #5b21b6;
+    }
+
+    .role-admin {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+
+    .inactive-badge {
+      background: #e5e7eb;
+      color: #4b5563;
+    }
 
     .small {
       color: #6b7280;
@@ -218,11 +267,14 @@
       margin-top: 10px;
     }
 
-    .public-mode, .admin-mode-hidden, .hidden {
+    .public-mode,
+    .admin-mode-hidden,
+    .hidden {
       display: none !important;
     }
 
-    .public-note, .login-note {
+    .public-note,
+    .login-note {
       background: #eef2ff;
       color: #3730a3;
       border-radius: 14px;
@@ -252,7 +304,7 @@
       border-radius: 18px;
       padding: 12px 16px;
       margin-bottom: 16px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.07);
     }
 
     .user-bar button {
@@ -309,7 +361,7 @@
       text-align: left;
       background: transparent;
       color: #e5e7eb;
-      border: 1px solid rgba(255,255,255,0.12);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 14px;
       padding: 11px 12px;
     }
@@ -323,7 +375,7 @@
     .sidebar-footer {
       margin-top: 16px;
       padding-top: 12px;
-      border-top: 1px solid rgba(255,255,255,0.14);
+      border-top: 1px solid rgba(255, 255, 255, 0.14);
       font-size: 12px;
       color: #cbd5e1;
       line-height: 1.5;
@@ -387,7 +439,9 @@
         overflow-y: hidden;
       }
 
-      .sidebar-title, .sidebar-subtitle, .sidebar-footer {
+      .sidebar-title,
+      .sidebar-subtitle,
+      .sidebar-footer {
         display: none;
       }
 
@@ -410,14 +464,42 @@
     }
 
     @media (max-width: 560px) {
-      .app { padding: 12px; }
-      .hero h1 { font-size: 24px; }
-      .stat { padding: 10px; }
-      .stat strong { font-size: 20px; }
-      .grid-2, .grid-3, .mode-buttons { grid-template-columns: 1fr; }
-      input, select, button { font-size: 16px; }
-      .user-bar { align-items: stretch; }
-      .user-bar button { width: 100%; margin-top: 10px; }
+      .app {
+        padding: 12px;
+      }
+
+      .hero h1 {
+        font-size: 24px;
+      }
+
+      .stat {
+        padding: 10px;
+      }
+
+      .stat strong {
+        font-size: 20px;
+      }
+
+      .grid-2,
+      .grid-3,
+      .mode-buttons {
+        grid-template-columns: 1fr;
+      }
+
+      input,
+      select,
+      button {
+        font-size: 16px;
+      }
+
+      .user-bar {
+        align-items: stretch;
+      }
+
+      .user-bar button {
+        width: 100%;
+        margin-top: 10px;
+      }
     }
   </style>
 </head>
@@ -456,8 +538,10 @@
         <button data-panel-btn="add" onclick="showAdminPanel('add')">➕ 新增器材</button>
         <button data-panel-btn="items" onclick="showAdminPanel('items')">📋 器材列表</button>
         <button data-panel-btn="history" onclick="showAdminPanel('history')">🕘 歷史紀錄</button>
-        <button class="admin-auth-only superadmin-only hidden" data-panel-btn="admins" onclick="showAdminPanel('admins')">👥 管理員管理</button>
-        <button class="admin-auth-only superadmin-only hidden" data-panel-btn="options" onclick="showAdminPanel('options')">🧩 資料選單管理</button>
+        <button class="admin-auth-only superadmin-only hidden" data-panel-btn="admins"
+          onclick="showAdminPanel('admins')">👥 管理員管理</button>
+        <button class="admin-auth-only superadmin-only hidden" data-panel-btn="options"
+          onclick="showAdminPanel('options')">🧩 資料選單管理</button>
         <button data-panel-btn="tools" onclick="showAdminPanel('tools')">⚙️ 管理工具</button>
       </nav>
       <div class="sidebar-footer">目前版本：V4<br>Supabase 雲端同步</div>
@@ -557,7 +641,8 @@
       <div id="historyList"></div>
     </section>
 
-    <section id="adminManageCard" class="card admin-only admin-auth-only superadmin-only admin-panel hidden" data-panel="admins">
+    <section id="adminManageCard" class="card admin-only admin-auth-only superadmin-only admin-panel hidden"
+      data-panel="admins">
       <h2>管理員管理</h2>
       <p class="section-note">只有總管理人可以新增、啟用或停用一般管理員。</p>
 
@@ -577,7 +662,8 @@
       <div id="adminList"></div>
     </section>
 
-    <section id="optionManageCard" class="card admin-only admin-auth-only superadmin-only admin-panel hidden" data-panel="options">
+    <section id="optionManageCard" class="card admin-only admin-auth-only superadmin-only admin-panel hidden"
+      data-panel="options">
       <h2>資料選單管理</h2>
       <p class="section-note">只有總管理人可以修改。改名後會套用到所有器材資料。</p>
 
@@ -614,7 +700,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    const SUPABASE_URL = "https://zqciuznfxuqobiocggpr.supabase.co";
+    const SUPABASE_URL = "https://zqqiuznfxuqobiocggpr.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_3H6arjoAueJ3S9xoW8sFfw_21NO-35_";
     const SESSION_KEY = "equipment_admin_panel_v4";
 
@@ -1513,4 +1599,5 @@
     }
   </script>
 </body>
+
 </html>
