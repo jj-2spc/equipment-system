@@ -644,7 +644,7 @@
     <section id="adminManageCard" class="card admin-only admin-auth-only superadmin-only admin-panel hidden"
       data-panel="admins">
       <h2>管理員管理</h2>
-      <p class="section-note">只有總管理人可以新增、啟用或停用一般管理員。</p>
+      <p class="section-note">只有超級管理員可以新增、啟用或停用一般管理員。</p>
 
       <div class="grid-2">
         <input type="text" id="newAdminUsername" placeholder="新管理員帳號">
@@ -654,7 +654,7 @@
         <input type="text" id="newAdminDisplayName" placeholder="顯示名稱，例如：王小明">
         <select id="newAdminRole">
           <option value="admin">一般管理員</option>
-          <option value="superadmin">總管理人</option>
+          <option value="superadmin">超級管理員</option>
         </select>
       </div>
       <button onclick="addAdminUser()">新增管理員</button>
@@ -665,7 +665,7 @@
     <section id="optionManageCard" class="card admin-only admin-auth-only superadmin-only admin-panel hidden"
       data-panel="options">
       <h2>資料選單管理</h2>
-      <p class="section-note">只有總管理人可以修改。改名後會套用到所有器材資料。</p>
+      <p class="section-note">只有超級管理員可以修改。改名後會套用到所有器材資料。</p>
 
       <div class="option-manager-block">
         <h3>分類管理</h3>
@@ -724,6 +724,9 @@
     let editingItemId = null;
     let currentUser = null;
     let currentPanel = "dashboard";
+    let realtimeChannel = null;
+    let realtimeRefreshTimer = null;
+    let isSilentRefreshing = false;
 
     const ADD_NEW_CATEGORY_VALUE = "__ADD_NEW_CATEGORY__";
 
@@ -741,6 +744,34 @@
     function setLoading(isLoading) {
       document.getElementById("loadingBox").style.display = isLoading ? "block" : "none";
       document.querySelectorAll("button").forEach(btn => btn.disabled = isLoading);
+    }
+
+    function scheduleRealtimeRefresh() {
+      clearTimeout(realtimeRefreshTimer);
+      realtimeRefreshTimer = setTimeout(() => refreshDataSilently(), 350);
+    }
+
+    async function refreshDataSilently() {
+      if (isSilentRefreshing) return;
+
+      try {
+        isSilentRefreshing = true;
+        await loadData(false);
+      } finally {
+        isSilentRefreshing = false;
+      }
+    }
+
+    function setupRealtimeSubscriptions() {
+      if (realtimeChannel) return;
+
+      realtimeChannel = supabaseClient
+        .channel("equipment-system-realtime-v4")
+        .on("postgres_changes", { event: "*", schema: "public", table: "items" }, scheduleRealtimeRefresh)
+        .on("postgres_changes", { event: "*", schema: "public", table: "records" }, scheduleRealtimeRefresh)
+        .on("postgres_changes", { event: "*", schema: "public", table: "option_values" }, scheduleRealtimeRefresh)
+        .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, scheduleRealtimeRefresh)
+        .subscribe();
     }
 
     function dbError(error, fallback = "操作失敗") {
@@ -776,6 +807,7 @@
 
         showAdminUI();
         await loadData();
+        setupRealtimeSubscriptions();
       } catch (err) {
         alert("登入失敗：" + err.message);
       } finally {
@@ -850,7 +882,7 @@
       document.getElementById("loginCard").classList.add("hidden");
       document.querySelectorAll(".admin-auth-only").forEach(el => el.classList.remove("hidden"));
       document.getElementById("currentUserName").textContent = currentUser.displayName || currentUser.email;
-      document.getElementById("currentUserRole").textContent = currentUser.role === "superadmin" ? "總管理人" : "一般管理員";
+      document.getElementById("currentUserRole").textContent = currentUser.role === "superadmin" ? "超級管理員" : "一般管理員";
       document.querySelectorAll(".superadmin-only").forEach(el => el.classList.toggle("hidden", !isSuperAdmin()));
       if (!isSuperAdmin() && (currentPanel === "admins" || currentPanel === "options")) currentPanel = "dashboard";
       showAdminPanel(currentPanel || "dashboard");
@@ -869,9 +901,9 @@
       location.reload();
     }
 
-    async function loadData() {
+    async function loadData(showLoader = true) {
       try {
-        setLoading(true);
+        if (showLoader) setLoading(true);
         const [{ data: itemRows, error: itemError }, { data: recordRows, error: recordError }, { data: optionRows, error: optionError }] = await Promise.all([
           supabaseClient.from("items").select("*").order("created_at", { ascending: true }),
           supabaseClient.from("records").select("*").order("created_at", { ascending: true }),
@@ -889,7 +921,7 @@
       } catch (err) {
         alert("讀取資料失敗：" + err.message);
       } finally {
-        setLoading(false);
+        if (showLoader) setLoading(false);
       }
     }
 
@@ -1347,76 +1379,11 @@
     }
 
     async function addAdminUser() {
-      if (!isSuperAdmin()) return alert("只有總管理人可以新增管理員");
-
-      const emailInput = document.getElementById("newAdminUsername");
-      const passwordInput = document.getElementById("newAdminPassword");
-      const displayNameInput = document.getElementById("newAdminDisplayName");
-      const roleInput = document.getElementById("newAdminRole");
-
-      const email = emailInput.value.trim();
-      const password = passwordInput.value.trim();
-      const displayName = displayNameInput.value.trim();
-      const role = roleInput.value;
-
-      if (!email) return alert("請輸入新管理員 Email");
-      if (!password) return alert("請輸入新管理員密碼");
-      if (password.length < 6) return alert("密碼至少需要 6 碼");
-      if (!["admin", "superadmin"].includes(role)) return alert("管理員權限不正確");
-
-      const confirmText = role === "superadmin"
-        ? `確定要新增「${displayName || email}」為總管理人嗎？`
-        : `確定要新增「${displayName || email}」為一般管理員嗎？`;
-
-      if (!confirm(confirmText)) return;
-
-      try {
-        setLoading(true);
-
-        const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
-        if (sessionError || !sessionData?.session?.access_token) {
-          return alert("登入狀態失效，請重新登入後再試");
-        }
-
-        const functionUrl = `${SUPABASE_URL}/functions/v1/create-admin`;
-
-        const res = await fetch(functionUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${sessionData.session.access_token}`,
-            "apikey": SUPABASE_ANON_KEY
-          },
-          body: JSON.stringify({
-            email,
-            password,
-            display_name: displayName || email,
-            role
-          })
-        });
-
-        const result = await res.json().catch(() => ({ ok: false, error: "Edge Function 回應格式錯誤" }));
-
-        if (!res.ok || !result.ok) {
-          return alert("新增管理員失敗：" + (result.error || `HTTP ${res.status}`));
-        }
-
-        emailInput.value = "";
-        passwordInput.value = "";
-        displayNameInput.value = "";
-        roleInput.value = "admin";
-
-        await loadAdmins();
-        alert("管理員新增完成");
-      } catch (err) {
-        alert("新增管理員失敗：" + err.message);
-      } finally {
-        setLoading(false);
-      }
+      alert("V4 純前端版不能安全地直接建立 Supabase Auth 使用者。\n請先到 Supabase Authentication 建立使用者，再把該使用者加入 profiles。\n如果你要保留一鍵新增管理員，我們下一步要加 Supabase Edge Function。");
     }
 
     async function toggleAdminUser(profileId) {
-      if (!isSuperAdmin()) return alert("只有總管理人可以操作");
+      if (!isSuperAdmin()) return alert("只有超級管理員可以操作");
       const admin = admins.find(a => a.id === String(profileId));
       if (!admin) return;
       if (admin.id === currentUser.id) return alert("不能停用目前登入帳號");
@@ -1424,7 +1391,7 @@
 
       try {
         setLoading(true);
-        const { error } = await supabaseClient.from("profiles").update({ active: !admin.active }).eq("id", admin.id);
+        const { error } = await supabaseClient.from("profiles").update({ is_active: !admin.active }).eq("id", admin.id);
         if (error) return alert("更新管理員狀態失敗：" + dbError(error));
         await loadAdmins();
       } catch (err) {
@@ -1454,7 +1421,7 @@
     }
 
     async function renameOptionValue(type) {
-      if (!isSuperAdmin()) return alert("只有總管理人可以修改選單資料");
+      if (!isSuperAdmin()) return alert("只有超級管理員可以修改選單資料");
       const config = {
         category: { label: "分類", selectId: "manageCategorySelect", inputId: "manageCategoryNewName", itemField: "category", dbField: "category" },
         custodianUnit: { label: "保管單位", selectId: "manageCustodianUnitSelect", inputId: "manageCustodianUnitNewName", itemField: "custodianUnit", dbField: "custodian_unit" },
@@ -1616,7 +1583,7 @@
       }
       list.innerHTML = admins.map(admin => `<div class="admin-row">
         <div class="title-row"><strong>${escapeHtml(admin.displayName)}（${escapeHtml(admin.email || admin.username)}）</strong><span class="badge ${admin.active ? "available" : "inactive-badge"}">${admin.active ? "啟用中" : "已停用"}</span></div>
-        <div class="small">權限：<span class="badge ${admin.role === "superadmin" ? "role-super" : "role-admin"}">${admin.role === "superadmin" ? "總管理人" : "一般管理員"}</span></div>
+        <div class="small">權限：<span class="badge ${admin.role === "superadmin" ? "role-super" : "role-admin"}">${admin.role === "superadmin" ? "超級管理員" : "一般管理員"}</span></div>
         <div class="small">建立時間：${admin.createdAt || "未記錄"}</div>
         ${admin.id === currentUser.id ? `<button class="btn-gray" disabled>目前登入帳號</button>` : `<button class="${admin.active ? "btn-red" : "btn-green"}" onclick="toggleAdminUser('${escapeJs(admin.id)}')">${admin.active ? "停用" : "啟用"}</button>`}
       </div>`).join("");
@@ -1658,9 +1625,11 @@
     setMode("borrow");
 
     if (pageMode === "public") {
-      loadData();
+      loadData().then(() => setupRealtimeSubscriptions());
     } else {
-      restoreLoginSession().then(ok => { if (ok) loadData(); });
+      restoreLoginSession().then(ok => {
+        if (ok) loadData().then(() => setupRealtimeSubscriptions());
+      });
     }
   </script>
 </body>
