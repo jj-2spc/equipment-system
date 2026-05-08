@@ -459,10 +459,31 @@
 
     #barcodeScannerReader {
       width: 100%;
+      min-height: 260px;
       overflow: hidden;
       border-radius: 16px;
       background: #111827;
       margin-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #barcodeScannerReader video {
+      width: 100% !important;
+      max-height: 360px;
+      object-fit: cover;
+      border-radius: 16px;
+    }
+
+    .scanner-status {
+      background: #f3f4f6;
+      color: #374151;
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-size: 14px;
+      line-height: 1.6;
+      margin-top: 10px;
     }
 
     .scanner-actions {
@@ -767,6 +788,7 @@
     <div class="scanner-card">
       <h3>📷 掃描財產條碼</h3>
       <p class="section-note">請把鏡頭對準器材上的財產標籤。掃描成功後會自動填入欄位。</p>
+      <div id="barcodeScannerStatus" class="scanner-status">準備啟動相機...</div>
       <div id="barcodeScannerReader"></div>
       <div class="scanner-actions">
         <button class="btn-gray" onclick="closeBarcodeScanner()">取消</button>
@@ -805,6 +827,9 @@
     let realtimeChannel = null;
     let realtimeRefreshTimer = null;
     let isSilentRefreshing = false;
+    let barcodeScanner = null;
+    let barcodeScannerStarting = false;
+    let barcodeTargetInputId = null;
 
     const ADD_NEW_CATEGORY_VALUE = "__ADD_NEW_CATEGORY__";
 
@@ -1681,6 +1706,16 @@
     }
 
 
+    function setBarcodeScannerStatus(message) {
+      const status = document.getElementById("barcodeScannerStatus");
+      if (status) status.textContent = message;
+    }
+
+    function isIOSDevice() {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    }
+
     async function startBarcodeScanner(targetInputId) {
       if (!targetInputId) return;
       barcodeTargetInputId = targetInputId;
@@ -1690,8 +1725,27 @@
         return;
       }
 
-      document.getElementById("barcodeScannerModal").classList.remove("hidden");
-      await openBarcodeScanner();
+      const modal = document.getElementById("barcodeScannerModal");
+      const reader = document.getElementById("barcodeScannerReader");
+      if (reader) reader.innerHTML = "";
+      modal.classList.remove("hidden");
+      setBarcodeScannerStatus(isIOSDevice() ? "iPhone 相機啟動中，請稍候 1 秒..." : "相機啟動中，請稍候...");
+
+      // iPhone Safari 對剛顯示的 modal/video 容器很挑剔，稍微延遲再啟動相機會穩很多。
+      window.setTimeout(() => openBarcodeScanner(), isIOSDevice() ? 650 : 250);
+    }
+
+    async function getPreferredCameraConfig() {
+      try {
+        const cameras = await Html5Qrcode.getCameras();
+        if (Array.isArray(cameras) && cameras.length > 0) {
+          const backCamera = cameras.find(camera => /back|rear|environment|後|背/i.test(camera.label || ""));
+          return backCamera ? backCamera.id : cameras[cameras.length - 1].id;
+        }
+      } catch (err) {
+        console.warn("取得相機清單失敗，改用 environment facingMode", err);
+      }
+      return { facingMode: "environment" };
     }
 
     async function openBarcodeScanner() {
@@ -1699,9 +1753,11 @@
       barcodeScannerStarting = true;
 
       try {
-        const readerId = "barcodeScannerReader";
-        if (!barcodeScanner) barcodeScanner = new Html5Qrcode(readerId);
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error("這個瀏覽器不支援相機掃描，請改用 Safari，或手動輸入條碼。");
+        }
 
+        const readerId = "barcodeScannerReader";
         const formatsToSupport = [
           Html5QrcodeSupportedFormats.QR_CODE,
           Html5QrcodeSupportedFormats.CODE_128,
@@ -1714,23 +1770,41 @@
           Html5QrcodeSupportedFormats.ITF
         ];
 
+        if (!barcodeScanner) {
+          barcodeScanner = new Html5Qrcode(readerId, { formatsToSupport, verbose: false });
+        }
+
+        if (barcodeScanner.isScanning) {
+          await barcodeScanner.stop();
+        }
+
+        const cameraConfig = await getPreferredCameraConfig();
+        setBarcodeScannerStatus("相機已啟動，請把條碼放在畫面中央。若沒有畫面，請按重新掃描。");
+
         await barcodeScanner.start(
-          { facingMode: "environment" },
+          cameraConfig,
           {
             fps: 10,
-            qrbox: { width: 260, height: 160 },
-            formatsToSupport
+            qrbox: { width: 280, height: 180 },
+            aspectRatio: 1.333334,
+            disableFlip: false
           },
           async decodedText => {
+            const text = String(decodedText || "").trim();
+            if (!text) return;
             const target = document.getElementById(barcodeTargetInputId);
-            if (target) target.value = String(decodedText || "").trim();
+            if (target) {
+              target.value = text;
+              target.dispatchEvent(new Event("input", { bubbles: true }));
+            }
+            setBarcodeScannerStatus(`掃描成功：${text}`);
             await closeBarcodeScanner(false);
           },
           () => {}
         );
       } catch (err) {
-        alert("無法啟動相機掃描：" + (err?.message || err));
-        document.getElementById("barcodeScannerModal").classList.add("hidden");
+        console.error("Barcode scanner failed", err);
+        setBarcodeScannerStatus("無法啟動相機。請確認使用 Safari、允許相機權限；也可以先手動輸入條碼。錯誤：" + (err?.message || err));
       } finally {
         barcodeScannerStarting = false;
       }
@@ -1745,7 +1819,11 @@
         console.warn("停止掃描器失敗", err);
       }
 
-      document.getElementById("barcodeScannerModal").classList.add("hidden");
+      const modal = document.getElementById("barcodeScannerModal");
+      const reader = document.getElementById("barcodeScannerReader");
+      if (modal) modal.classList.add("hidden");
+      if (reader) reader.innerHTML = "";
+      setBarcodeScannerStatus("準備啟動相機...");
       if (clearTarget) barcodeTargetInputId = null;
     }
 
@@ -1757,7 +1835,10 @@
       } catch (err) {
         console.warn("重新掃描前停止掃描器失敗", err);
       }
-      await openBarcodeScanner();
+      const reader = document.getElementById("barcodeScannerReader");
+      if (reader) reader.innerHTML = "";
+      setBarcodeScannerStatus(isIOSDevice() ? "重新啟動 iPhone 相機中，請稍候..." : "重新啟動相機中...");
+      window.setTimeout(() => openBarcodeScanner(), isIOSDevice() ? 650 : 250);
     }
 
     function copyPublicUrl() {
