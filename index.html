@@ -419,6 +419,59 @@
       margin: -8px 0 16px;
     }
 
+
+
+    .barcode-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .barcode-row button {
+      width: auto;
+      white-space: nowrap;
+    }
+
+    .scanner-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(17, 24, 39, 0.72);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .scanner-card {
+      width: min(480px, 100%);
+      background: white;
+      border-radius: 22px;
+      padding: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    }
+
+    .scanner-card h3 {
+      margin: 0 0 6px;
+      font-size: 20px;
+    }
+
+    #barcodeScannerReader {
+      width: 100%;
+      overflow: hidden;
+      border-radius: 16px;
+      background: #111827;
+      margin-top: 12px;
+    }
+
+    .scanner-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
     @media (max-width: 760px) {
       body.admin-logged-in .app {
         margin-left: 0;
@@ -482,8 +535,14 @@
 
       .grid-2,
       .grid-3,
-      .mode-buttons {
+      .mode-buttons,
+      .barcode-row,
+      .scanner-actions {
         grid-template-columns: 1fr;
+      }
+
+      .barcode-row button {
+        width: 100%;
       }
 
       input,
@@ -615,6 +674,12 @@
         </div>
       </div>
 
+      <label for="itemAssetBarcode">財產條碼</label>
+      <div class="barcode-row">
+        <input type="text" id="itemAssetBarcode" placeholder="可手動輸入，或用手機掃描財產標籤">
+        <button class="btn-blue" onclick="startBarcodeScanner('itemAssetBarcode')">📷 掃描條碼</button>
+      </div>
+
       <div class="grid-2">
         <div>
           <select id="custodianUnitSelect" onchange="handleCustodianUnitSelectChange()"></select>
@@ -698,7 +763,20 @@
 
   </div>
 
+  <div id="barcodeScannerModal" class="scanner-backdrop hidden">
+    <div class="scanner-card">
+      <h3>📷 掃描財產條碼</h3>
+      <p class="section-note">請把鏡頭對準器材上的財產標籤。掃描成功後會自動填入欄位。</p>
+      <div id="barcodeScannerReader"></div>
+      <div class="scanner-actions">
+        <button class="btn-gray" onclick="closeBarcodeScanner()">取消</button>
+        <button class="btn-orange" onclick="restartBarcodeScanner()">重新掃描</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script>
     const SUPABASE_URL = "https://zqqiuznfxuqobiocggpr.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_3H6arjoAueJ3S9xoW8sFfw_21NO-35_";
@@ -940,6 +1018,7 @@
         category: item.category || "未分類",
         custodianUnit: item.custodian_unit || item.custodianUnit || "",
         custodianName: item.custodian_name || item.custodianName || "",
+        assetBarcode: item.asset_barcode || item.assetBarcode || "",
         ownerId: item.owner_id || item.ownerId || "",
         ownerUsername: item.owner_email || item.owner_username || item.ownerUsername || "",
         available: item.available !== false,
@@ -1210,6 +1289,7 @@
       const category = getAddCategoryValue();
       const custodianUnit = getAddCustodianUnitValue();
       const custodianName = getAddCustodianNameValue();
+      const assetBarcode = document.getElementById("itemAssetBarcode").value.trim();
       if (!name) return alert("請輸入器材名稱");
 
       try {
@@ -1223,6 +1303,7 @@
           category,
           custodian_unit: custodianUnit,
           custodian_name: custodianName,
+          asset_barcode: assetBarcode,
           available: true,
           owner_id: currentUser.id,
           owner_email: currentUser.email
@@ -1230,6 +1311,7 @@
         if (error) return alert("新增失敗：" + dbError(error));
 
         nameInput.value = "";
+        document.getElementById("itemAssetBarcode").value = "";
         ["itemCategoryNew", "custodianUnitNew", "custodianNameNew"].forEach(id => {
           const el = document.getElementById(id);
           if (el) { el.value = ""; el.style.display = "none"; }
@@ -1336,6 +1418,7 @@
       const category = getEditCategoryValue(itemId);
       const custodianUnit = getEditCustodianValue(itemId, "unit");
       const custodianName = getEditCustodianValue(itemId, "name");
+      const assetBarcode = document.getElementById(`editAssetBarcode-${itemId}`)?.value.trim() || "";
       if (!name) return alert("器材名稱不能空白");
 
       try {
@@ -1348,7 +1431,8 @@
           name,
           category,
           custodian_unit: custodianUnit,
-          custodian_name: custodianName
+          custodian_name: custodianName,
+          asset_barcode: assetBarcode
         }).eq("id", String(itemId));
         if (error) return alert("更新失敗：" + dbError(error));
 
@@ -1492,7 +1576,8 @@
           item.name.toLowerCase().includes(keyword) ||
           item.category.toLowerCase().includes(keyword) ||
           item.custodianUnit.toLowerCase().includes(keyword) ||
-          item.custodianName.toLowerCase().includes(keyword)
+          item.custodianName.toLowerCase().includes(keyword) ||
+          item.assetBarcode.toLowerCase().includes(keyword)
         );
       }
       if (filtered.length === 0) {
@@ -1505,6 +1590,11 @@
           return `
             <div class="item"><div class="edit-box"><strong>編輯器材</strong>
               <input id="editName-${escapeHtml(item.id)}" type="text" value="${escapeHtml(item.name)}">
+              <label for="editAssetBarcode-${escapeHtml(item.id)}">財產條碼</label>
+              <div class="barcode-row">
+                <input id="editAssetBarcode-${escapeHtml(item.id)}" type="text" value="${escapeHtml(item.assetBarcode || "")}" placeholder="可手動輸入，或用手機掃描財產標籤">
+                <button class="btn-blue" onclick="startBarcodeScanner('editAssetBarcode-${escapeJs(item.id)}')">📷 掃描條碼</button>
+              </div>
               <select id="editCategorySelect-${escapeHtml(item.id)}" onchange="handleEditCategorySelectChange('${escapeJs(item.id)}')"></select>
               <input id="editCategoryNew-${escapeHtml(item.id)}" type="text" placeholder="輸入新分類，例如：資訊設備" style="display:none;">
               <div class="grid-2"><div>
@@ -1525,6 +1615,7 @@
             <div class="small">分類：${escapeHtml(item.category)}</div>
             <div class="small">保管單位：${escapeHtml(item.custodianUnit || "未填")}</div>
             <div class="small">保管人：${escapeHtml(item.custodianName || "未填")}</div>
+            <div class="small">財產條碼：${escapeHtml(item.assetBarcode || "未綁定")}</div>
             <div class="small">建立者：${escapeHtml(item.ownerUsername || "未記錄")}</div>
             <div class="grid-2">
               ${canEdit ? `<button class="btn-orange" onclick="startEditItem('${escapeJs(item.id)}')">編輯</button>` : `<button class="btn-gray" disabled>不可編輯</button>`}
@@ -1587,6 +1678,86 @@
         <div class="small">建立時間：${admin.createdAt || "未記錄"}</div>
         ${admin.id === currentUser.id ? `<button class="btn-gray" disabled>目前登入帳號</button>` : `<button class="${admin.active ? "btn-red" : "btn-green"}" onclick="toggleAdminUser('${escapeJs(admin.id)}')">${admin.active ? "停用" : "啟用"}</button>`}
       </div>`).join("");
+    }
+
+
+    async function startBarcodeScanner(targetInputId) {
+      if (!targetInputId) return;
+      barcodeTargetInputId = targetInputId;
+
+      if (!window.Html5Qrcode) {
+        alert("條碼掃描套件尚未載入完成，請重新整理後再試");
+        return;
+      }
+
+      document.getElementById("barcodeScannerModal").classList.remove("hidden");
+      await openBarcodeScanner();
+    }
+
+    async function openBarcodeScanner() {
+      if (barcodeScannerStarting) return;
+      barcodeScannerStarting = true;
+
+      try {
+        const readerId = "barcodeScannerReader";
+        if (!barcodeScanner) barcodeScanner = new Html5Qrcode(readerId);
+
+        const formatsToSupport = [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.CODE_93,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.ITF
+        ];
+
+        await barcodeScanner.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 260, height: 160 },
+            formatsToSupport
+          },
+          async decodedText => {
+            const target = document.getElementById(barcodeTargetInputId);
+            if (target) target.value = String(decodedText || "").trim();
+            await closeBarcodeScanner(false);
+          },
+          () => {}
+        );
+      } catch (err) {
+        alert("無法啟動相機掃描：" + (err?.message || err));
+        document.getElementById("barcodeScannerModal").classList.add("hidden");
+      } finally {
+        barcodeScannerStarting = false;
+      }
+    }
+
+    async function closeBarcodeScanner(clearTarget = true) {
+      try {
+        if (barcodeScanner && barcodeScanner.isScanning) {
+          await barcodeScanner.stop();
+        }
+      } catch (err) {
+        console.warn("停止掃描器失敗", err);
+      }
+
+      document.getElementById("barcodeScannerModal").classList.add("hidden");
+      if (clearTarget) barcodeTargetInputId = null;
+    }
+
+    async function restartBarcodeScanner() {
+      try {
+        if (barcodeScanner && barcodeScanner.isScanning) {
+          await barcodeScanner.stop();
+        }
+      } catch (err) {
+        console.warn("重新掃描前停止掃描器失敗", err);
+      }
+      await openBarcodeScanner();
     }
 
     function copyPublicUrl() {
