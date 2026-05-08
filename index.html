@@ -1347,7 +1347,72 @@
     }
 
     async function addAdminUser() {
-      alert("V4 純前端版不能安全地直接建立 Supabase Auth 使用者。\n請先到 Supabase Authentication 建立使用者，再把該使用者加入 profiles。\n如果你要保留一鍵新增管理員，我們下一步要加 Supabase Edge Function。");
+      if (!isSuperAdmin()) return alert("只有總管理人可以新增管理員");
+
+      const emailInput = document.getElementById("newAdminUsername");
+      const passwordInput = document.getElementById("newAdminPassword");
+      const displayNameInput = document.getElementById("newAdminDisplayName");
+      const roleInput = document.getElementById("newAdminRole");
+
+      const email = emailInput.value.trim();
+      const password = passwordInput.value.trim();
+      const displayName = displayNameInput.value.trim();
+      const role = roleInput.value;
+
+      if (!email) return alert("請輸入新管理員 Email");
+      if (!password) return alert("請輸入新管理員密碼");
+      if (password.length < 6) return alert("密碼至少需要 6 碼");
+      if (!["admin", "superadmin"].includes(role)) return alert("管理員權限不正確");
+
+      const confirmText = role === "superadmin"
+        ? `確定要新增「${displayName || email}」為總管理人嗎？`
+        : `確定要新增「${displayName || email}」為一般管理員嗎？`;
+
+      if (!confirm(confirmText)) return;
+
+      try {
+        setLoading(true);
+
+        const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+        if (sessionError || !sessionData?.session?.access_token) {
+          return alert("登入狀態失效，請重新登入後再試");
+        }
+
+        const functionUrl = `${SUPABASE_URL}/functions/v1/create-admin`;
+
+        const res = await fetch(functionUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${sessionData.session.access_token}`,
+            "apikey": SUPABASE_ANON_KEY
+          },
+          body: JSON.stringify({
+            email,
+            password,
+            display_name: displayName || email,
+            role
+          })
+        });
+
+        const result = await res.json().catch(() => ({ ok: false, error: "Edge Function 回應格式錯誤" }));
+
+        if (!res.ok || !result.ok) {
+          return alert("新增管理員失敗：" + (result.error || `HTTP ${res.status}`));
+        }
+
+        emailInput.value = "";
+        passwordInput.value = "";
+        displayNameInput.value = "";
+        roleInput.value = "admin";
+
+        await loadAdmins();
+        alert("管理員新增完成");
+      } catch (err) {
+        alert("新增管理員失敗：" + err.message);
+      } finally {
+        setLoading(false);
+      }
     }
 
     async function toggleAdminUser(profileId) {
@@ -1359,7 +1424,7 @@
 
       try {
         setLoading(true);
-        const { error } = await supabaseClient.from("profiles").update({ is_active: !admin.active }).eq("id", admin.id);
+        const { error } = await supabaseClient.from("profiles").update({ active: !admin.active }).eq("id", admin.id);
         if (error) return alert("更新管理員狀態失敗：" + dbError(error));
         await loadAdmins();
       } catch (err) {
