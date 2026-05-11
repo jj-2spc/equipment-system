@@ -763,7 +763,11 @@
 
       <div id="borrowPanel">
         <input type="text" id="borrowerName" placeholder="借用人姓名">
-        <select id="borrowItemSelect"></select>
+        <div class="grid-2">
+          <select id="borrowItemSelect"></select>
+          <button class="btn-blue" onclick="startBarcodeScanner('__BORROW_BY_ASSET__')">📷 掃描借用</button>
+        </div>
+        <div class="small">掃描或拍照辨識器材財產編號後，系統會自動帶入可借用器材。</div>
 
         <label for="expectedReturnDate">預計歸還日期</label>
         <div class="grid-2">
@@ -775,7 +779,11 @@
       </div>
 
       <div id="returnPanel" style="display:none;">
-        <select id="returnRecordSelect"></select>
+        <div class="grid-2">
+          <select id="returnRecordSelect"></select>
+          <button class="btn-blue" onclick="startBarcodeScanner('__RETURN_BY_ASSET__')">📷 掃描歸還</button>
+        </div>
+        <div class="small">掃描或拍照辨識器材財產編號後，系統會自動找到借用中的紀錄。</div>
         <button class="btn-blue" onclick="returnSelectedItem()">確認歸還</button>
       </div>
     </section>
@@ -1852,6 +1860,16 @@
       return new ZXing.BrowserMultiFormatReader(hints, 80);
     }
 
+    function getBarcodeScanModeLabel() {
+      if (barcodeTargetInputId === "__BORROW_BY_ASSET__") return "掃描借用器材";
+      if (barcodeTargetInputId === "__RETURN_BY_ASSET__") return "掃描歸還器材";
+      return "掃描財產條碼";
+    }
+
+    function isPublicBorrowReturnScan() {
+      return barcodeTargetInputId === "__BORROW_BY_ASSET__" || barcodeTargetInputId === "__RETURN_BY_ASSET__";
+    }
+
     async function startBarcodeScanner(targetInputId) {
       if (!targetInputId || barcodeScannerStarting) return;
       barcodeTargetInputId = targetInputId;
@@ -1861,6 +1879,8 @@
 
       const modal = document.getElementById("barcodeScannerModal");
       const reader = document.getElementById("barcodeScannerReader");
+      const modalTitle = document.querySelector("#barcodeScannerModal h3");
+      if (modalTitle) modalTitle.textContent = "📷 " + getBarcodeScanModeLabel();
       if (reader) {
         reader.innerHTML = `
           <video id="barcodeScannerVideo" autoplay muted playsinline webkit-playsinline></video>
@@ -2069,7 +2089,65 @@
       }
     }
 
+    function normalizeAssetCodeForMatch(value) {
+      return String(value || "")
+        .trim()
+        .toUpperCase()
+        .replace(/[\s　]/g, "")
+        .replace(/[－–—]/g, "-");
+    }
+
+    function findItemByAssetCode(assetCode) {
+      const code = normalizeAssetCodeForMatch(assetCode);
+      if (!code) return null;
+      return items.find(item => normalizeAssetCodeForMatch(item.assetBarcode) === code) || null;
+    }
+
+    async function handleBorrowReturnAssetScan(assetCode) {
+      const item = findItemByAssetCode(assetCode);
+      if (!item) {
+        alert(`找不到財產編號「${assetCode}」對應的器材。\n請先到後台新增器材，或確認財產編號是否正確。`);
+        return;
+      }
+
+      if (barcodeTargetInputId === "__BORROW_BY_ASSET__") {
+        if (!item.available) {
+          alert(`「${item.name}」目前是借用中，不能借用。`);
+          setMode("return");
+          const borrowedRecord = records.find(r => r.status === "borrowed" && String(r.itemId) === String(item.id));
+          if (borrowedRecord) document.getElementById("returnRecordSelect").value = borrowedRecord.id;
+          return;
+        }
+
+        setMode("borrow");
+        const select = document.getElementById("borrowItemSelect");
+        if (select) select.value = item.id;
+
+        const borrower = document.getElementById("borrowerName")?.value.trim();
+        if (borrower) {
+          if (confirm(`已掃到「${item.name}」。\n要直接完成借用登記嗎？`)) await borrowItem();
+        } else {
+          alert(`已掃到「${item.name}」，請輸入借用人姓名後按「確認借用」。`);
+        }
+        return;
+      }
+
+      if (barcodeTargetInputId === "__RETURN_BY_ASSET__") {
+        const borrowedRecord = records.find(r => r.status === "borrowed" && String(r.itemId) === String(item.id));
+        if (!borrowedRecord) {
+          alert(`「${item.name}」目前沒有借用中的紀錄，不需要歸還。`);
+          return;
+        }
+
+        setMode("return");
+        const select = document.getElementById("returnRecordSelect");
+        if (select) select.value = borrowedRecord.id;
+        await returnItem(borrowedRecord.id);
+      }
+    }
+
     async function finishBarcodeScan(text) {
+      const scanAction = barcodeTargetInputId;
       const target = document.getElementById(barcodeTargetInputId);
       if (target) {
         target.value = text;
@@ -2082,7 +2160,13 @@
       } catch (_) {}
 
       setBarcodeScannerStatus(`掃描成功：${text}`);
-      window.setTimeout(() => closeBarcodeScanner(false), 180);
+      await closeBarcodeScanner(false);
+
+      if (scanAction === "__BORROW_BY_ASSET__" || scanAction === "__RETURN_BY_ASSET__") {
+        barcodeTargetInputId = scanAction;
+        await handleBorrowReturnAssetScan(text);
+        barcodeTargetInputId = null;
+      }
     }
 
     async function stopBarcodeCameraOnly() {
