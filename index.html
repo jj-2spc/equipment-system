@@ -441,15 +441,18 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 16px;
+      padding: 12px;
     }
 
     .scanner-card {
       width: min(480px, 100%);
+      max-height: calc(100dvh - 24px);
       background: white;
       border-radius: 22px;
-      padding: 16px;
+      padding: 14px;
       box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
     }
 
     .scanner-card h3 {
@@ -460,11 +463,11 @@
     #barcodeScannerReader {
       position: relative;
       width: 100%;
-      min-height: 360px;
+      min-height: 260px;
       overflow: hidden;
       border-radius: 16px;
       background: #111827;
-      margin-top: 12px;
+      margin-top: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -472,8 +475,7 @@
 
     #barcodeScannerReader video {
       width: 100% !important;
-      height: 420px;
-      max-height: 58vh;
+      height: min(360px, 48dvh);
       object-fit: cover;
       border-radius: 16px;
     }
@@ -528,11 +530,31 @@
       margin-top: 10px;
     }
 
-    .scanner-actions {
+    .scanner-actions,
+    .scanner-primary-actions {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
       gap: 10px;
       margin-top: 10px;
+    }
+
+    .scanner-primary-actions {
+      grid-template-columns: 1fr;
+    }
+
+    .scanner-primary-actions button {
+      margin-top: 0;
+      font-size: 17px;
+      padding: 14px 12px;
+    }
+
+    .scanner-actions {
+      position: sticky;
+      bottom: 0;
+      background: white;
+      padding-top: 10px;
+      padding-bottom: max(4px, env(safe-area-inset-bottom));
+      z-index: 2;
     }
 
     @media (max-width: 760px) {
@@ -599,9 +621,46 @@
       .grid-2,
       .grid-3,
       .mode-buttons,
-      .barcode-row,
-      .scanner-actions {
+      .barcode-row {
         grid-template-columns: 1fr;
+      }
+
+      .scanner-card {
+        max-height: calc(100dvh - 18px);
+        padding: 12px;
+        border-radius: 18px;
+      }
+
+      .scanner-card h3 {
+        font-size: 18px;
+      }
+
+      .scanner-card .section-note {
+        font-size: 13px;
+        margin-bottom: 6px;
+      }
+
+      .scanner-status {
+        font-size: 13px;
+        padding: 8px 10px;
+      }
+
+      .scanner-actions {
+        grid-template-columns: 0.8fr 0.9fr 1.1fr;
+        gap: 8px;
+      }
+
+      .scanner-actions button {
+        padding: 11px 8px;
+        font-size: 14px;
+      }
+
+      #barcodeScannerReader {
+        min-height: 230px;
+      }
+
+      #barcodeScannerReader video {
+        height: min(330px, 42dvh);
       }
 
       .barcode-row button {
@@ -831,11 +890,14 @@
       <h3>📷 掃描財產條碼</h3>
       <p class="section-note">請把鏡頭對準器材上的財產標籤。掃描成功後會自動填入欄位。</p>
       <div id="barcodeScannerStatus" class="scanner-status">準備啟動相機...</div>
+      <div class="scanner-primary-actions">
+        <button class="btn-green" onclick="captureAssetNumberFromVideo()">📸 拍照辨識財產編號</button>
+      </div>
       <div id="barcodeScannerReader"></div>
       <div class="scanner-actions">
         <button class="btn-gray" onclick="closeBarcodeScanner()">取消</button>
         <button class="btn-orange" onclick="restartBarcodeScanner()">重新掃描</button>
-        <button class="btn-green" onclick="captureAssetNumberFromVideo()">拍照辨識編號</button>
+        <button class="btn-green" onclick="captureAssetNumberFromVideo()">拍照辨識</button>
       </div>
     </div>
   </div>
